@@ -1,0 +1,10 @@
+Flask
+duckdb
+feedparser
+requests
+beautifulsoup4
+sumy
+langdetect
+sentence-transformers
+faiss-cpu
+ollama  # oder entsprechendes Paket für die LLM-Interaktion

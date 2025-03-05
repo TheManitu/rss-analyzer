@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informationssuche & Artikel</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <script>
+        async function searchInformation(event) {
+            if (event) event.preventDefault();
+            const question = document.getElementById("search-input").value;
+            // Zeige den großen Spinner im Antwortbereich
+            document.getElementById("search-answer").innerHTML = '<div class="spinner"></div>';
+            document.getElementById("source-container").innerHTML = "";
+            // Zeige den kleinen Spinner neben der Suche
+            document.getElementById("loading-indicator").style.display = "inline-block";
+            try {
+                const response = await fetch("/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question: question })
+                });
+                const data = await response.json();
+                // Blende den kleinen Spinner aus
+                document.getElementById("loading-indicator").style.display = "none";
+                // Mache den Container sichtbar
+                document.getElementById("search-container").style.display = "block";
+                document.getElementById("search-answer").innerHTML = data.answer;
+                document.getElementById("source-container").innerHTML = data.sources;
+            } catch (error) {
+                document.getElementById("loading-indicator").style.display = "none";
+                document.getElementById("search-answer").innerHTML = "Fehler bei der Suche.";
+                document.getElementById("search-container").style.display = "block";
+            }
+        }
+        // Event Listener für Enter-Taste im Suchfeld
+        document.addEventListener("DOMContentLoaded", function() {
+            const searchInput = document.getElementById("search-input");
+            searchInput.addEventListener("keydown", function(event) {
+                if (event.key === "Enter") {
+                    searchInformation(event);
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-top">
+            <div class="logo">
+                <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                </svg>
+                <span class="logo-text">Informationssuche</span>
+            </div>
+        </div>
+        <div class="header-search">
+            <form onsubmit="searchInformation(event);">
+                <input type="text" id="search-input" placeholder="Stellen Sie Ihre Frage zur Informationssuche..." />
+                <button type="submit">Suchen</button>
+                <!-- Kleiner Lade-Indikator neben der Suche -->
+                <span id="loading-indicator" class="small-spinner"></span>
+            </form>
+        </div>
+    </header>
+    <main>
+        <!-- Kombinierte Suchergebnis-Box: Antwort und Quellen-Fußzeile -->
+        <div id="search-container">
+            <div id="search-answer"></div>
+            <div id="source-container"></div>
+        </div>
+        
+        <div class="container">
+            {% if top_articles %}
+            <h2>Top Artikel von Heute</h2>
+            {% for article in top_articles %}
+            <details class="article">
+                <summary>
+                    <div class="title">
+                        <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
+                    </div>
+                    <div class="meta">
+                        Veröffentlicht: {{ article.published }} | Thema: {{ article.topic }} | Wichtigkeit: {{ article.importance }}
+                    </div>
+                    <div class="preview-content">
+                        {{ article.content | first_words }}
+                    </div>
+                </summary>
+                <div class="full-content">
+                    {{ article.content | truncatewords(500) }}
+                </div>
+            </details>
+            {% endfor %}
+            {% endif %}
+            
+            <h2>Heutige Artikel</h2>
+            {% for article in articles %}
+            <details class="article">
+                <summary>
+                    <div class="title">
+                        <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
+                    </div>
+                    <div class="meta">
+                        Veröffentlicht: {{ article.published }} | Thema: {{ article.topic }} | Wichtigkeit: {{ article.importance }}
+                    </div>
+                    <div class="preview-content">
+                        {{ article.content | first_words }}
+                    </div>
+                </summary>
+                <div class="full-content">
+                    {{ article.content | truncatewords(500) }}
+                </div>
+            </details>
+            {% endfor %}
+            <div class="load-more">
+                <a href="?time_filter=3_days">Mehr Artikel der letzten 3 Tage</a> |
+                <a href="?time_filter=7_days">Mehr Artikel der letzten 7 Tage</a> |
+                <a href="?time_filter=14_days">Mehr Artikel der letzten 14 Tage</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

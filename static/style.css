@@ -1,0 +1,298 @@
+/* Import von Google Fonts für elegantes und gut lesbares Design */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+
+/* CSS Variablen für Dark Theme und Akzentfarben */
+:root {
+    --bg-color: #1e1e1e;
+    --surface-color: #2e2e2e;
+    --card-color: #3e3e3e;
+    --text-color: #ffffff;
+    --accent-color: #82aaff;
+    --border-color: #333;
+}
+
+/* Global */
+* {
+    box-sizing: border-box;
+}
+
+/* Basis-Stile */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Header: Geteiltes Layout in oberen (Logo) und unteren Bereich (Suche) */
+header {
+    background-color: var(--surface-color);
+    padding: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* Header Top: Logo */
+.header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-icon {
+    margin-right: 10px;
+    stroke: var(--accent-color);
+}
+
+.logo-text {
+    font-size: 1.8em;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+/* Header Search: Separater Bereich für die Suchfunktion */
+.header-search {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.header-search form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.header-search input[type="text"] {
+    width: 300px;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+.header-search button {
+    padding: 8px 16px;
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.header-search button:hover {
+    background-color: #6699cc;
+}
+
+.header-search button:active {
+    transform: scale(0.98);
+}
+
+/* Kleiner Spinner neben der Suche */
+.small-spinner {
+    display: none;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #ccc;
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+
+/* Kombinierte Suchergebnis-Box (Antwort + Quellen-Fußzeile) */
+#search-container {
+    display: none;
+    width: 90%;
+    max-width: 1200px;
+    margin: 20px auto;
+    background-color: var(--surface-color);
+    padding: 20px;
+    border-radius: 8px;
+    font-size: 1em;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Antwort-Bereich */
+#search-answer {
+    text-align: left;
+}
+
+/* Quellen-Fußzeile */
+#source-container {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    text-align: left;
+    font-size: 0.9em;
+    color: #ffffff;
+}
+#source-container a {
+    color: #ffffff;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-bottom 0.2s;
+}
+#source-container a:hover {
+    border-bottom: 1px solid var(--accent-color);
+}
+
+/* Loader Spinner (groß) */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 5px solid #ccc;
+    border-top: 5px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Main Container */
+.container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: var(--surface-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Überschriften in den Containern */
+.container h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+    font-weight: 600;
+}
+
+/* Artikel-Boxen als ausklappbare Elemente mit <details> */
+.article {
+    background-color: var(--card-color);
+    border: 1px solid #444;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.article:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Das <summary> im <details> */
+.article summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+.article summary::-webkit-details-marker {
+    display: none;
+}
+
+.title {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.title a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.title a:hover {
+    text-decoration: underline;
+}
+
+.meta {
+    color: #bbb;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+}
+
+/* Vorschau-Text: Zwei Zeilen mit Ellipsis */
+.preview-content {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 10px;
+}
+
+/* Wenn der Artikel geöffnet ist, soll die Vorschau verschwinden */
+.article[open] .preview-content {
+    display: none;
+}
+
+/* Inhalt, der beim Ausklappen angezeigt wird */
+/* Hier wird der gesamte Inhalt (max. 500 Wörter – über den Jinja‑Filter) angezeigt */
+.full-content {
+    padding: 0 20px 20px 30px; /* Linker Abstand 30px */
+    white-space: pre-wrap;
+    font-size: 1em;
+    line-height: 1.6;
+    display: none;
+    text-indent: 0;
+    text-align: left;
+}
+.full-content p {
+    margin: 0;
+    text-indent: 0;
+}
+.full-content::first-line {
+    text-indent: 0 !important;
+}
+
+/* Sobald <details> geöffnet ist, wird der Inhalt eingeblendet */
+.article[open] .full-content {
+    display: block;
+}
+
+/* "Mehr laden"-Links */
+.load-more {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 1em;
+}
+.load-more a {
+    color: var(--accent-color);
+    text-decoration: none;
+    margin: 0 5px;
+}
+.load-more a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive Anpassungen */
+@media (max-width: 600px) {
+    .header-search input[type="text"] {
+        width: 80%;
+    }
+    .container, #search-container {
+        width: 95%;
+        padding: 15px;
+    }
+}
