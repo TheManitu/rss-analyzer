@@ -50,9 +50,9 @@ rss-analyzer/ ├── rss_analyzer/ # Haupt-Package │ ├── init.py # In
 
 1. **Repository klonen:**  
    Klone das Repository auf deinen lokalen Rechner:
-   ```bash
-   git clone https://github.com/dein-benutzername/rss-analyzer.git
-   cd rss-analyzer
+   bash
+  `git clone https://github.com/dein-benutzername/rss-analyzer.git
+   cd rss-analyzer`
 
     Virtuelles Environment erstellen:
     Erstelle und aktiviere ein virtuelles Environment:
@@ -66,20 +66,20 @@ source venv/bin/activate
 # Abhängigkeiten installieren:
 Installiere alle benötigten Pakete:
 
-pip install -r requirements.txt
+`pip install -r requirements.txt`
 
 ## Nutzung
 # RSS-Feeds einlesen
 
 Führe den Scraper aus, um die RSS-Feeds zu verarbeiten und Artikel in die Datenbank zu speichern:
 
-python -m rss_analyzer.scraper
+`python -m rss_analyzer.scraper`
 
 ## Webanwendung starten
 
 # Starte die Flask-Webanwendung:
 
-python -m rss_analyzer.app
+`python -m rss_analyzer.app`
 
 Öffne anschließend http://127.0.0.1:5000 in deinem Browser. Hier kannst du Fragen zur Informationssuche stellen und erhältst basierend auf den gesammelten Artikeln generierte Antworten sowie Quellverweise.
 
