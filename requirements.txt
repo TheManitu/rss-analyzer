@@ -7,4 +7,8 @@ sumy
 langdetect
 sentence-transformers
 faiss-cpu
-ollama  # oder entsprechendes Paket für die LLM-Interaktion
+ollama
+kafka-python
+rank_bm25
+sentence-transformers
+

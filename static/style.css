@@ -1,4 +1,4 @@
-/* Import von Google Fonts für elegantes und gut lesbares Design */
+/* Import von Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
 
 /* CSS Variablen für Dark Theme und Akzentfarben */
@@ -27,7 +27,7 @@ body {
     line-height: 1.6;
 }
 
-/* Header: Geteiltes Layout in oberen (Logo) und unteren Bereich (Suche) */
+/* Header */
 header {
     background-color: var(--surface-color);
     padding: 20px;
@@ -48,18 +48,13 @@ header {
     justify-content: center;
 }
 
-.logo-icon {
-    margin-right: 10px;
-    stroke: var(--accent-color);
-}
-
 .logo-text {
     font-size: 1.8em;
     font-weight: 600;
     color: #e0e0e0;
 }
 
-/* Header Search: Separater Bereich für die Suchfunktion */
+/* Header Search */
 .header-search {
     display: flex;
     justify-content: center;
@@ -101,7 +96,7 @@ header {
     transform: scale(0.98);
 }
 
-/* Kleiner Spinner neben der Suche */
+/* Kleiner Spinner */
 .small-spinner {
     display: none;
     width: 20px;
@@ -114,59 +109,37 @@ header {
     margin-left: 10px;
 }
 
-/* Kombinierte Suchergebnis-Box (Antwort + Quellen-Fußzeile) */
-#search-container {
-    display: none;
-    width: 90%;
-    max-width: 1200px;
-    margin: 20px auto;
-    background-color: var(--surface-color);
-    padding: 20px;
-    border-radius: 8px;
-    font-size: 1em;
-    transition: all 0.3s ease-in-out;
-}
-
-/* Antwort-Bereich */
-#search-answer {
-    text-align: left;
-}
-
-/* Quellen-Fußzeile */
-#source-container {
+/* Antwort-Box */
+.live-answer-box {
     margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-color);
-    text-align: left;
-    font-size: 0.9em;
-    color: #ffffff;
-}
-#source-container a {
-    color: #ffffff;
-    text-decoration: none;
-    border-bottom: 1px solid transparent;
-    transition: border-bottom 0.2s;
-}
-#source-container a:hover {
-    border-bottom: 1px solid var(--accent-color);
-}
-
-/* Loader Spinner (groß) */
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 5px solid #ccc;
-    border-top: 5px solid var(--accent-color);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto;
-}
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    padding: 15px;
+    background-color: var(--card-color);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    display: none;
+    min-height: 50px;
+    font-size: 1.1em;
+    line-height: 1.8em;
+    overflow-wrap: break-word;
+    width: 100%;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-/* Main Container */
+/* Quellen im Antwortbereich */
+.live-answer-box ol {
+    padding-left: 20px;
+    margin-top: 15px;
+    color: var(--accent-color);
+    font-size: 0.95em;
+}
+
+.live-answer-box li {
+    margin-bottom: 5px;
+}
+
+/* Weitere Elemente (Container, Artikel, etc.) bleiben unverändert */
 .container {
     max-width: 900px;
     margin: 20px auto;
@@ -176,7 +149,6 @@ header {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
-/* Überschriften in den Containern */
 .container h2 {
     text-align: center;
     margin-bottom: 20px;
@@ -248,9 +220,8 @@ header {
 }
 
 /* Inhalt, der beim Ausklappen angezeigt wird */
-/* Hier wird der gesamte Inhalt (max. 500 Wörter – über den Jinja‑Filter) angezeigt */
 .full-content {
-    padding: 0 20px 20px 30px; /* Linker Abstand 30px */
+    padding: 0 20px 20px 30px;
     white-space: pre-wrap;
     font-size: 1em;
     line-height: 1.6;
@@ -258,17 +229,29 @@ header {
     text-indent: 0;
     text-align: left;
 }
-.full-content p {
-    margin: 0;
-    text-indent: 0;
-}
+/* Entferne diese Regeln, da sie bei Blockelementen (z. B. <p>) oft nicht greifen */
+/*
 .full-content::first-line {
-    text-indent: 0 !important;
+    padding-left: 0;
+}
+.article[open] .full-content::first-line {
+    text-indent: -30px !important;
+}
+*/
+/* Erster Absatz in einem geöffneten Artikel: Linksausrichtung ohne zusätzlichen linken Padding */
+.article[open] .full-content > p:first-child {
+    margin-left: -30px;
 }
 
 /* Sobald <details> geöffnet ist, wird der Inhalt eingeblendet */
 .article[open] .full-content {
     display: block;
+}
+
+/* Im open-Zustand wird die erste Zeile um -30px eingerückt, 
+   sodass der linke Padding-Ausgleich erfolgt */
+   .article[open] .full-content::first-line {
+    text-indent: -30px !important;
 }
 
 /* "Mehr laden"-Links */
@@ -284,6 +267,42 @@ header {
 }
 .load-more a:hover {
     text-decoration: underline;
+}
+
+/* Fixiertes Panel für die Artikel-Alter-Übersicht */
+.article-age-overview {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: var(--surface-color);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    z-index: 1000;
+    max-width: 200px;
+    font-size: 0.9em;
+}
+
+.article-age-overview h3 {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    text-align: center;
+}
+
+.article-age-overview ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.article-age-overview li {
+    margin: 5px 0;
+    cursor: pointer;
+}
+
+.article-age-overview li.active {
+    color: var(--accent-color);
+    font-weight: 600;
 }
 
 /* Responsive Anpassungen */

@@ -1,4 +1,3 @@
-# rss_analyzer/scraper.py
 #!/usr/bin/env python3
 import feedparser
 import requests
@@ -10,35 +9,38 @@ from sumy.parsers.plaintext import PlaintextParser
 from sumy.summarizers.lex_rank import LexRankSummarizer
 
 from rss_analyzer.config import RSS_FEEDS, TOPIC_MAPPING
-from rss_analyzer.database import create_table, insert_article
+from rss_analyzer.database import create_table, insert_article, get_all_articles
+from rss_analyzer.topic_db import create_topic_table, update_topic
 
 def clean_text(text):
-    """Bereinigt den Text von überflüssigen Leerzeichen und HTML-Tags."""
     return re.sub(r'\s+', ' ', text).strip()
 
 class SimpleTokenizer:
     def __init__(self, language):
         self.language = language
     def to_sentences(self, text):
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        return [s.strip() for s in sentences if s.strip()]
+        return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
     def to_words(self, text):
-        return re.findall(r'\w+', text, flags=re.UNICODE)
+        return re.findall(r'\w+', text)
 
 def generate_summary(text, max_words=300):
-    """Erzeugt eine Zusammenfassung mithilfe des LexRankSummarizers."""
     parser = PlaintextParser.from_string(text, SimpleTokenizer("german"))
     summarizer = LexRankSummarizer()
     summary_sentences = summarizer(parser.document, 10)
     summary = " ".join(str(sentence) for sentence in summary_sentences)
-    summary_words = summary.split()
-    if len(summary_words) > max_words:
-        summary = " ".join(summary_words[:max_words])
-    return summary
+    return " ".join(summary.split()[:max_words])
 
-def save_summary(title, summary):
-    """Platzhalter zum Speichern der Zusammenfassung."""
-    print(f"Zusammenfassung für '{title}' wurde erstellt und gespeichert.")
+def is_cookie_consent_text(text):
+    """
+    Prüft, ob der übergebene Text typische Cookie-Consent-Phrasen enthält.
+    Diese Phrasen sollen unerwünschte Informationen (z. B. bei golem.de) erkennen.
+    """
+    consent_phrases = [
+        "zustimmung", "cookie", "tracking", "privacy center",
+        "datenschutzerklärung", "nutzung aller cookies", "widerruf"
+    ]
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in consent_phrases)
 
 def fetch_full_article(link):
     MIN_WORDS = 100
@@ -47,135 +49,96 @@ def fetch_full_article(link):
         if response.status_code != 200:
             return ""
         soup = BeautifulSoup(response.content, "html.parser")
+        # Entferne Tags, die nicht zum Artikelinhalt gehören.
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
+
+        # Versuche, den Inhalt aus <main> oder <article> zu extrahieren.
         content_tag = soup.find("main") or soup.find("article")
         if content_tag:
             for tag in content_tag(["aside", "iframe", "ins"]):
                 tag.decompose()
             text1 = clean_text(content_tag.get_text(separator=" "))
-            text1 = re.sub(r"(heise online|Logo|Anmelden|gratis testen|Mehr erfahren)", "", text1, flags=re.IGNORECASE)
-            if len(text1.split()) >= MIN_WORDS:
+            # Falls der Text ausreichend lang ist und nicht hauptsächlich Cookie-Consent-Informationen enthält:
+            if len(text1.split()) >= MIN_WORDS and not is_cookie_consent_text(text1):
                 return text1
+            else:
+                # Falls offensichtlich Cookie-Consent-Text detektiert wird, verwende alternativ alle <p>-Tags.
+                paragraphs = soup.find_all("p")
+                filtered_paragraphs = []
+                for p in paragraphs:
+                    p_text = clean_text(p.get_text())
+                    if not is_cookie_consent_text(p_text):
+                        filtered_paragraphs.append(p_text)
+                text2 = clean_text(" ".join(filtered_paragraphs))
+                if len(text2.split()) >= MIN_WORDS:
+                    return text2
+        # Fallback: alle <p>-Tags
         paragraphs = [p.get_text() for p in soup.find_all("p")]
-        if paragraphs:
-            text2 = clean_text(" ".join(paragraphs))
-            text2 = re.sub(r"(heise online|Logo|Anmelden|gratis testen|Mehr erfahren)", "", text2, flags=re.IGNORECASE)
-            if len(text2.split()) >= MIN_WORDS:
-                return text2
-        full_text = clean_text(soup.get_text(separator=" "))
-        full_text = re.sub(r"(heise online|Logo|Anmelden|gratis testen|Mehr erfahren)", "", full_text, flags=re.IGNORECASE)
-        return full_text if len(full_text.split()) >= MIN_WORDS else ""
+        text3 = clean_text(" ".join(paragraphs))
+        return text3 if len(text3.split()) >= MIN_WORDS else ""
     except Exception as e:
-        print(f"Error fetching full article ({link}):", e)
-    return ""
-
-def summarize_article(content, title):
-    if content is None:
-        raise ValueError("Kein Inhalt für die Zusammenfassung übergeben.")
-    word_count = len(content.split())
-    if word_count <= 500:
-        return None
-    cleaned_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
-    try:
-        summary = generate_summary(cleaned_content, max_words=300)
-    except Exception as e:
-        summary = ""
-        paragraphs = cleaned_content.split("\n\n")
-        for para in paragraphs:
-            if para.strip():
-                part_summary = generate_summary(para, max_words=100)
-                summary += part_summary + " "
-        summary_words = summary.split()
-        if len(summary_words) > 350:
-            summary = " ".join(summary_words[:300])
-            last_period = summary.rfind(".")
-            if last_period != -1:
-                summary = summary[:last_period+1]
-    summary_words = summary.split()
-    if len(summary_words) > 350:
-        trimmed_summary = " ".join(summary_words[:300])
-        last_period = trimmed_summary.rfind(".")
-        if last_period != -1:
-            trimmed_summary = trimmed_summary[:last_period+1]
-        summary = trimmed_summary
-    save_summary(title, summary)
-    return summary
+        print(f"❌ Fehler beim Artikelabruf ({link}):", e)
+        return ""
 
 def process_article(content, title):
-    """Entscheidet, ob zusammengefasst werden soll."""
     word_count = len(content.split())
     try:
         lang = detect(content)
-    except Exception as e:
+    except Exception:
         lang = "unknown"
     if word_count > 300 or lang == "en":
-        print(f"Artikel '{title}' wird zusammengefasst: word_count={word_count}, lang={lang}")
-        return summarize_article(content, title)
-    else:
-        return content
+        return generate_summary(content)
+    return content
 
 def fetch_and_store_feeds():
-    """Liest alle RSS-Feeds ein und speichert Artikel (letzte 14 Tage) in die DB."""
     create_table()
+    create_topic_table()
+    saved_count = 0
     for url in RSS_FEEDS:
-        print(f"Verarbeite Feed: {url}")
+        print(f"🌐 Verarbeite Feed: {url}")
         feed = feedparser.parse(url)
         for entry in feed.entries:
             title = entry.get("title", "Kein Titel")
             link = entry.get("link", "")
-            description = clean_text(entry.get("summary", entry.get("description", "")).strip())
+            description = clean_text(entry.get("summary", entry.get("description", "")))
             if not description:
-                description = "Beschreibung fehlt – klicken Sie auf den Artikel für mehr Informationen."
+                description = "Beschreibung fehlt."
             full_content = fetch_full_article(link)
             if not full_content:
-                print(f"Warnung: Kein vollständiger Artikeltext gefunden für {title}")
                 full_content = description
             content = process_article(full_content, title)
             try:
                 published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).date()
             except Exception:
                 published_dt = datetime.now(timezone.utc).date()
+
             text_to_search = (title + " " + description).lower()
-            matched_topics = []
-            for topic_name, data in TOPIC_MAPPING.items():
-                for kw in data["keywords"]:
-                    if kw in text_to_search:
-                        matched_topics.append((topic_name, data["importance"]))
-                        break
+            matched_topics = [(name, d["importance"]) for name, d in TOPIC_MAPPING.items()
+                              if any(kw in text_to_search for kw in d["keywords"])]
             if matched_topics:
-                matched_topics = sorted(matched_topics, key=lambda x: x[1], reverse=True)
-                chosen_topics = matched_topics[:2]
-                topic_names = [t[0] for t in chosen_topics]
-                importance = max(t[1] for t in chosen_topics)
+                matched_topics.sort(key=lambda x: x[1], reverse=True)
+                topic_names = [t[0] for t in matched_topics[:2]]
+                importance = max(t[1] for t in matched_topics)
             else:
                 topic_names = ["Allgemein"]
                 importance = 1
             topic_str = ", ".join(topic_names)
-            relevance = importance
-            if published_dt == datetime.now(timezone.utc).date():
-                relevance += 1
+            relevance = importance + (1 if published_dt == datetime.now(timezone.utc).date() else 0)
+
             if published_dt >= (datetime.now(timezone.utc).date() - timedelta(days=14)):
                 insert_article(title, link, description, content, published_dt, topic_str, importance, relevance)
-                print(f"Gespeichert: {title}")
-            else:
-                print(f"Übersprungen (älter als 2 Wochen): {title}")
+                for t in topic_names:
+                    update_topic(t, delta=1)
+                saved_count += 1
+    print(f"\n✅ {saved_count} neue Artikel gespeichert.")
 
-def test_output():
-    """Gibt eine Testausgabe von 5 gespeicherten Artikeln aus."""
-    from rss_analyzer.database import get_all_articles
+def show_summary():
+    print("\n🗂️  Vorschau der gespeicherten Artikel:")
     articles = get_all_articles(time_filter="today")
-    for art in articles[:5]:
-        print("Titel:", art["title"])
-        print("Quelle:", art["link"])
-        print("Veröffentlicht:", art["published"])
-        print("Themen:", art["topic"])
-        print("Wichtigkeit:", art["importance"])
-        print("Relevanz:", art["relevance"])
-        print("Content:", art["content"])
-        print("-" * 80)
+    for a in articles[:5]:
+        print(f"• {a['title']} ({a['published']}) – Thema: {a['topic']}")
 
 if __name__ == "__main__":
     fetch_and_store_feeds()
-    print("\n--- Testausgabe der letzten 5 Artikel ---")
-    test_output()
+    show_summary()

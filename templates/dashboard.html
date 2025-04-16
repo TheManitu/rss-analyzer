@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>RSS Answers Dashboard</title>
+  <meta name="description" content="RSS Answers Dashboard – Übersicht über Themen und Artikel.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container mt-4">
+    <h1>RSS Answers Dashboard</h1>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Thema</th>
+          <th>Artikelanzahl</th>
+          <th>Status</th>
+          <th>Letzte Aktualisierung</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in topics %}
+        <tr>
+          <td>{{ t.topic }}</td>
+          <td>{{ t.article_count }}</td>
+          <td>
+            {% if t.is_complete %}
+              <span class="badge bg-success">Abgedeckt</span>
+            {% else %}
+              <span class="badge bg-warning">Fehlend</span>
+            {% endif %}
+          </td>
+          <td>{{ t.last_updated }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

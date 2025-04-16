@@ -1,0 +1,113 @@
+/* analytics.css */
+
+/* Import von Google Fonts (wie in der main css) */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+
+/* Dark Theme Variablen */
+:root {
+    --bg-color: #1e1e1e;
+    --surface-color: #2e2e2e;
+    --card-color: #3e3e3e;
+    --text-color: #ffffff;
+    --accent-color: #82aaff;
+    --border-color: #333;
+}
+
+/* Globales Reset */
+* {
+    box-sizing: border-box;
+}
+
+/* Body-Einstellungen */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Haupt-Container für Analytics-Inhalte */
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: var(--surface-color);
+    border-radius: 8px;
+}
+
+/* Überschriften */
+h1, h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--accent-color);
+}
+
+/* Tabellen-Styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+table th,
+table td {
+    padding: 12px 15px;
+    border: 1px solid var(--border-color);
+}
+
+table thead tr {
+    background-color: var(--card-color);
+}
+
+table tbody tr:nth-child(even) {
+    background-color: var(--surface-color);
+}
+
+table tbody tr:nth-child(odd) {
+    background-color: var(--card-color);
+}
+
+/* Responsive Anpassungen für kleinere Bildschirmbreiten */
+@media (max-width: 600px) {
+    .container {
+        padding: 15px;
+    }
+    
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    
+    thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    tr {
+        margin-bottom: 15px;
+    }
+    
+    td {
+        border: none;
+        position: relative;
+        padding-left: 50%;
+    }
+    
+    td::before {
+        position: absolute;
+        top: 12px;
+        left: 15px;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: bold;
+    }
+    
+    td:nth-of-type(1)::before { content: "Frage"; }
+    td:nth-of-type(2)::before { content: "Anzahl"; }
+    td:nth-of-type(3)::before { content: "Zeitraum"; }
+}

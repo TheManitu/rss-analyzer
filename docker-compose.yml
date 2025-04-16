@@ -1,0 +1,89 @@
+services:
+  rss-zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: rss-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    restart: always
+
+  rss-kafka-ingest:
+    image: wurstmeister/kafka:2.12-2.2.0
+    container_name: rss-kafka-ingest
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: rss-zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://rss-kafka-ingest:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_BROKER_ID: 1
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+    depends_on:
+      - rss-zookeeper
+    restart: always
+
+  rss-kafka-stream:
+    image: wurstmeister/kafka:2.12-2.2.0
+    container_name: rss-kafka-stream
+    ports:
+      - "9093:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: rss-zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://rss-kafka-stream:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_BROKER_ID: 2
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+    depends_on:
+      - rss-zookeeper
+    restart: always
+
+  rag-spark:
+    image: gettyimages/spark:2.4.1-hadoop-3.0
+    container_name: rag-spark
+    ports:
+      - "8080:8080"
+      - "4040:4040"
+    volumes:
+      - ./:/app
+    depends_on:
+      - rss-kafka-ingest
+      - rss-kafka-stream
+      - rss-zookeeper
+    command: tail -f /dev/null
+    restart: always
+
+  rag-app:
+    build: .
+    container_name: rag-app
+    ports:
+      - "5001:5000"
+    runtime: nvidia
+    environment:
+      - PYTHONPATH=/app
+      - NVIDIA_VISIBLE_DEVICES=all
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - rss-kafka-ingest
+      - rss-zookeeper
+    restart: always
+
+  # Separater Ollama‑Service, der dauerhaft läuft
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    runtime: nvidia
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: always
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  ollama:

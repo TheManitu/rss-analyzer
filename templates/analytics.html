@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>RSS Answers Analytics</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
+    <!-- Neuer Stylesheet im Stil der Main CSS -->
+    <link rel="stylesheet" href="/static/analytics.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Analysedaten</h1>
+        <h3>Häufig gestellte Fragen</h3>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Frage</th>
+                    <th>Anzahl</th>
+                    <th>Zeitraum</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in questions %}
+                <tr>
+                    <td>{{ q.question }}</td>
+                    <td>{{ q.count }}</td>
+                    <td>{{ q.window }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
