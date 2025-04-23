@@ -1,0 +1,21 @@
+2025-04-19 14:35:00,676 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-04-19 14:35:00,685 INFO supervisord started with pid 1
+2025-04-19 14:35:01,688 INFO spawned: 'cron' with pid 14
+2025-04-19 14:35:01,698 INFO spawned: 'flask' with pid 15
+2025-04-19 14:35:01,699 WARN exited: cron (exit status 1; not expected)
+2025-04-19 14:35:01,956 WARN exited: flask (exit status 1; not expected)
+2025-04-19 14:35:02,960 INFO spawned: 'cron' with pid 16
+2025-04-19 14:35:02,964 INFO spawned: 'flask' with pid 17
+2025-04-19 14:35:02,967 WARN exited: cron (exit status 1; not expected)
+2025-04-19 14:35:03,207 WARN exited: flask (exit status 1; not expected)
+2025-04-19 14:35:05,211 INFO spawned: 'cron' with pid 18
+2025-04-19 14:35:05,214 INFO spawned: 'flask' with pid 19
+2025-04-19 14:35:05,216 WARN exited: cron (exit status 1; not expected)
+2025-04-19 14:35:05,381 WARN exited: flask (exit status 1; not expected)
+2025-04-19 14:35:08,386 INFO spawned: 'cron' with pid 20
+2025-04-19 14:35:08,388 INFO spawned: 'flask' with pid 21
+2025-04-19 14:35:08,390 WARN exited: cron (exit status 1; not expected)
+2025-04-19 14:35:08,391 INFO gave up: cron entered FATAL state, too many start retries too quickly
+2025-04-19 14:35:08,536 WARN exited: flask (exit status 1; not expected)
+2025-04-19 14:35:09,537 INFO gave up: flask entered FATAL state, too many start retries too quickly
+2025-04-19 14:40:53,910 WARN received SIGTERM indicating exit request

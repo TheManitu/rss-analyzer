@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Analytics Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h1, h2 { color: #2c3e50; }
+        .metric { margin-bottom: 2em; }
+        table { border-collapse: collapse; width: 60%; }
+        th, td { border: 1px solid #ccc; padding: 8px; }
+        th { background: #f4f4f4; }
+    </style>
+</head>
+<body>
+<h1>Audit-Trail</h1>
+<table>
+<tr><th>Artikel-ID</th><th>Typ</th><th>Zeit</th></tr>
+{% for row in audit %}
+<tr><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td></tr>
+{% endfor %}
+</table>
+</body>
+</html>

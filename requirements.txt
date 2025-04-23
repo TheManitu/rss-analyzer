@@ -11,4 +11,5 @@ ollama
 kafka-python
 rank_bm25
 sentence-transformers
-
+hf_xet
+aiohttp

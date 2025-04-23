@@ -1,76 +1,51 @@
 services:
-  rss-zookeeper:
-    image: bitnami/zookeeper:latest
-    container_name: rss-zookeeper
-    ports:
-      - "2181:2181"
+  zookeeper:
+    image: bitnami/zookeeper:3.8
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
     restart: always
 
-  rss-kafka-ingest:
-    image: wurstmeister/kafka:2.12-2.2.0
-    container_name: rss-kafka-ingest
+  kafka:
+    image: bitnami/kafka:3.5
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
     ports:
       - "9092:9092"
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: rss-zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://rss-kafka-ingest:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_BROKER_ID: 1
-      KAFKA_DELETE_TOPIC_ENABLE: 'true'
     depends_on:
-      - rss-zookeeper
+      - zookeeper
     restart: always
 
-  rss-kafka-stream:
-    image: wurstmeister/kafka:2.12-2.2.0
-    container_name: rss-kafka-stream
-    ports:
-      - "9093:9092"
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: rss-zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://rss-kafka-stream:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_BROKER_ID: 2
-      KAFKA_DELETE_TOPIC_ENABLE: 'true'
-    depends_on:
-      - rss-zookeeper
-    restart: always
-
-  rag-spark:
-    image: gettyimages/spark:2.4.1-hadoop-3.0
-    container_name: rag-spark
-    ports:
-      - "8080:8080"
-      - "4040:4040"
-    volumes:
-      - ./:/app
-    depends_on:
-      - rss-kafka-ingest
-      - rss-kafka-stream
-      - rss-zookeeper
-    command: tail -f /dev/null
-    restart: always
-
-  rag-app:
+  api:
     build: .
-    container_name: rag-app
-    ports:
-      - "5001:5000"
-    runtime: nvidia
+    container_name: api
+    working_dir: /app
     environment:
       - PYTHONPATH=/app
-      - NVIDIA_VISIBLE_DEVICES=all
+      - DB_PATH=/app/data/rssfeed.duckdb
+      - KAFKA_BOOTSTRAP=kafka:9092
       - OLLAMA_HOST=http://ollama:11434
+      - LLM_CHAT_LOG_DIR=/app/logs
     volumes:
-      - ./data:/app/data
+      - rssdata:/app/data
+      - ./logs:/app/logs
+    ports: ["5000:5000"]
+    command: >
+      bash -c "
+        echo '→ RSS-Ingest starten';
+        python -u -m ingestion.rss_ingest &&
+        echo '→ Ingest fertig, starte API';
+        python -u -m api.app
+      "
     depends_on:
-      - rss-kafka-ingest
-      - rss-zookeeper
+      - kafka
+      - ollama
     restart: always
 
-  # Separater Ollama‑Service, der dauerhaft läuft
   ollama:
     image: ollama/ollama
     container_name: ollama
@@ -81,9 +56,52 @@ services:
       - ollama:/root/.ollama
     restart: always
 
-networks:
-  default:
-    driver: bridge
+  spark-analytics:
+    image: bitnami/spark:3
+    container_name: spark-analytics
+    # Arbeitsverzeichnis auf den im Repo gemounteten Code
+    working_dir: /app
+    # Mount deines Projekt‑Roots sowie des gemeinsamen Volumes
+    volumes:
+      - ./:/app
+      - rssdata:/data
+    environment:
+      # Damit Spark auf Kafka zugreifen kann
+      - KAFKA_BOOTSTRAP=kafka:9092
+    # Stream‑Job, der dauerhaft läuft
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --master local[2]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1
+      /app/analytics/analytics_stream.py
+    # Spark‑UI auf Port 4040 sichtbar
+    ports:
+      - "4040:4040"
+    depends_on:
+      - kafka
+    restart: always
+
+  spark-quality:
+    image: bitnami/spark:3
+    container_name: spark-quality
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - rssdata:/data
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:9092
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --master local[2]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1
+      /app/analytics/spark_quality_checks.py
+    # Für den Fall, dass auch dieser Job eine UI startet (z.B. Port 4041)
+    ports:
+      - "4041:4040"
+    depends_on:
+      - kafka
+    restart: always
 
 volumes:
+  rssdata:
   ollama:

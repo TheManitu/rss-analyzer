@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# entrypoint.sh
 
-echo "🚀 Starting supervisord..."
-exec supervisord -c /app/supervisord.conf
+# Cron‑Daemon starten
+service cron start
+
+# Supervisor im Vordergrund starten
+exec /usr/bin/supervisord -n

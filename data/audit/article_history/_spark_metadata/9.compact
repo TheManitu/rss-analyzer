@@ -1,0 +1,11 @@
+v1
+{"path":"file:///data/audit/article_history/part-00000-c1c4b2b8-7180-4169-933f-608cca4604c1-c000.snappy.parquet","size":5062,"isDir":false,"modificationTime":1744943762724,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-e4b91eac-c836-4b3e-b986-9434790502b1-c000.snappy.parquet","size":16274,"isDir":false,"modificationTime":1744943765047,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-089c983e-7c55-43ad-a1d0-9a6c07fd5cb6-c000.snappy.parquet","size":7760,"isDir":false,"modificationTime":1744943767001,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-f288a215-d470-44f5-a104-942b750529da-c000.snappy.parquet","size":7999,"isDir":false,"modificationTime":1744943769212,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-1c9fba78-bafb-4c00-9c22-ed03c7070dd9-c000.snappy.parquet","size":7190,"isDir":false,"modificationTime":1744943771182,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-680a6c0f-7993-4e4e-9acd-949a5271ebb0-c000.snappy.parquet","size":6785,"isDir":false,"modificationTime":1744943774406,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-fbb77289-951d-43d7-9a82-1561da879e3f-c000.snappy.parquet","size":8959,"isDir":false,"modificationTime":1744943776973,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-ea32c606-d166-43e0-8a71-b2b4b596af6b-c000.snappy.parquet","size":9773,"isDir":false,"modificationTime":1744943779663,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-88be416f-37b0-496d-bac5-546249d7d9e5-c000.snappy.parquet","size":7979,"isDir":false,"modificationTime":1744943782133,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///data/audit/article_history/part-00000-a61c0c0f-07e4-4db5-bfaf-87f5f372a277-c000.snappy.parquet","size":7191,"isDir":false,"modificationTime":1744943784994,"blockReplication":1,"blockSize":33554432,"action":"add"}

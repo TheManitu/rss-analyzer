@@ -1,34 +1,49 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">
-    <title>RSS Answers Analytics</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
-    <!-- Neuer Stylesheet im Stil der Main CSS -->
-    <link rel="stylesheet" href="/static/analytics.css">
+    <meta charset="UTF-8">
+    <title>Analytics Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h1, h2 { color: #2c3e50; }
+        .metric { margin-bottom: 2em; }
+        table { border-collapse: collapse; width: 60%; }
+        th, td { border: 1px solid #ccc; padding: 8px; }
+        th { background: #f4f4f4; }
+    </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1>Analysedaten</h1>
-        <h3>Häufig gestellte Fragen</h3>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Frage</th>
-                    <th>Anzahl</th>
-                    <th>Zeitraum</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for q in questions %}
-                <tr>
-                    <td>{{ q.question }}</td>
-                    <td>{{ q.count }}</td>
-                    <td>{{ q.window }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<h1>Nutzer-Analytics</h1>
+
+<div class="metric">
+    <h2>Meistgestellte Fragen</h2>
+    <table>
+        <tr><th>Frage</th><th>Anzahl</th></tr>
+        {% for question, count in top_questions %}
+        <tr><td>{{ question }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="metric">
+    <h2>Fragen pro Stunde</h2>
+    <table>
+        <tr><th>Uhrzeit</th><th>Anzahl</th></tr>
+        {% for hour, count in questions_by_hour %}
+        <tr><td>{{ hour }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="metric">
+    <h2>Meistgelesene Artikel</h2>
+    <table>
+        <tr><th>Artikel-ID</th><th>Aufrufe</th></tr>
+        {% for article_id, count in top_articles %}
+        <tr><td>{{ article_id }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
 </body>
 </html>

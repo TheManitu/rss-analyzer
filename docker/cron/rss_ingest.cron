@@ -1,0 +1,2 @@
+# Führe alle 30 Minuten den Ingestion‑Job aus und schreibe ins Log
+*/30 * * * * root python /app/ingestion/rss_ingest.py >> /app/logs/ingest.log 2>&1

@@ -1,2 +1,0 @@
-# scrape: Cron job to run the scraper once a day at 01:00
-0 1 * * * root python3 /app/rss_analyzer/scraper >> /var/log/scrape.log 2>&1
