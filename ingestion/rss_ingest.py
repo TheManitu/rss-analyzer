@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # ingestion/rss_ingest.py
+
 import asyncio
 import aiohttp
 import subprocess
-import shlex
 import re
 
 from html import unescape
@@ -25,16 +25,11 @@ def clean_text(text: str) -> str:
     """
     Entfernt HTML-Tags, HTML-Entities und normalisiert Whitespace.
     """
-    # HTML parsen und reinen Text holen
     soup = BeautifulSoup(text or '', 'html.parser')
     raw = soup.get_text(separator=' ')
-    # Entferne fallbackweise alle <...> Reste
     no_tags = re.sub(r'<[^>]+>', '', raw)
-    # Entities unescapen (z.B. &amp; -> &)
     unesc = unescape(no_tags)
-    # Whitespace konsolidieren
     return re.sub(r'\s+', ' ', unesc).strip()
-
 
 def summarize(text: str, sentences: int = 5) -> str:
     """
@@ -53,14 +48,21 @@ def summarize(text: str, sentences: int = 5) -> str:
         parts = re.split(r'(?<=[\.!?])\s+', text)
         return " ".join(parts[:sentences])
 
-
 def translate_de_en(text: str) -> str:
     """
     Übersetzt deutsch->englisch regelbasiert via Apertium.
+    Schickt den Text über stdin an das Apertium-Kommando.
     """
-    cmd = f"echo {shlex.quote(text)} | apertium -u de-en"
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    return result.stdout.strip() or ""
+    try:
+        proc = subprocess.run(
+            ["apertium", "-u", "de-en"],
+            input=text,
+            capture_output=True,
+            text=True
+        )
+        return proc.stdout.strip() or ""
+    except Exception:
+        return ""
 
 class RSSIngest:
     def __init__(self, feeds=None, storage_client=None):
@@ -88,7 +90,6 @@ class RSSIngest:
         """
         Löscht Artikel mit zu wenig Content (nur bei gescrapten Artikeln, nicht bei RSS-Feeds).
         """
-        # Baue WHERE-Klausel: kurze Content-Artikel, aber NICHT aus Skip-Domains
         exclude = " OR ".join([f"link LIKE '%{d}%'" for d in SKIP_SCRAPE_DOMAINS])
         clause = f"array_length(split(content, ' '), 1) < {min_words}"
         if exclude:
@@ -128,7 +129,7 @@ class RSSIngest:
 
         # 1) RSS-only Artikel speichern (ohne Längencheck)
         for title, link, desc, published in direct:
-            summ = summarize(desc)
+            summ  = summarize(desc)
             trans = translate_de_en(desc)
             self.storage.insert_article(
                 title=title,
@@ -140,7 +141,7 @@ class RSSIngest:
                 published=published,
                 topic=None,
                 importance=0,
-                relevance=0,
+                relevance=0
             )
             update_topic("Allgemein", delta=1)
             saved += 1
@@ -158,7 +159,7 @@ class RSSIngest:
             if len(content.split()) < MIN_ARTICLE_WORDS:
                 print(f"⚠️ Artikel zu kurz ({len(content.split())} Wörter): {link}")
                 continue
-            summ = summarize(content)
+            summ  = summarize(content)
             trans = translate_de_en(content)
             self.storage.insert_article(
                 title=title,
@@ -170,7 +171,7 @@ class RSSIngest:
                 published=published,
                 topic=None,
                 importance=0,
-                relevance=0,
+                relevance=0
             )
             update_topic("Allgemein", delta=1)
             saved += 1
@@ -179,7 +180,6 @@ class RSSIngest:
         self.delete_short_articles(min_words=MIN_ARTICLE_WORDS)
 
         print(f"\n✅ {saved} neue Artikel verarbeitet und gespeichert.")
-
 
 def main():
     RSSIngest().run()

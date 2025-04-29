@@ -59,22 +59,19 @@ services:
   spark-analytics:
     image: bitnami/spark:3
     container_name: spark-analytics
-    # Arbeitsverzeichnis auf den im Repo gemounteten Code
     working_dir: /app
-    # Mount deines Projekt‑Roots sowie des gemeinsamen Volumes
     volumes:
       - ./:/app
       - rssdata:/data
     environment:
-      # Damit Spark auf Kafka zugreifen kann
       - KAFKA_BOOTSTRAP=kafka:9092
-    # Stream‑Job, der dauerhaft läuft
+      - DB_PATH=/data/rssfeed.duckdb
     command: >
-      /opt/bitnami/spark/bin/spark-submit
-      --master local[2]
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1
-      /app/analytics/analytics_stream.py
-    # Spark‑UI auf Port 4040 sichtbar
+      bash -c "pip install duckdb && \
+        /opt/bitnami/spark/bin/spark-submit \
+        --master local[2] \
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1 \
+        /app/analytics/spark_analytics.py"
     ports:
       - "4040:4040"
     depends_on:
@@ -91,11 +88,10 @@ services:
     environment:
       - KAFKA_BOOTSTRAP=kafka:9092
     command: >
-      /opt/bitnami/spark/bin/spark-submit
-      --master local[2]
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1
+      /opt/bitnami/spark/bin/spark-submit \
+      --master local[2] \
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1 \
       /app/analytics/spark_quality_checks.py
-    # Für den Fall, dass auch dieser Job eine UI startet (z.B. Port 4041)
     ports:
       - "4041:4040"
     depends_on:
