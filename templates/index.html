@@ -1,192 +1,81 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>RSS Answers</title>
-  <meta name="description" content="RSS Answers – Ihr Portal für RSS Feeds und intelligente Suche mittels RAGSystem.">
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="icon" href="/static/rssanswers.png" type="image/png">
+  <meta charset="utf-8">
+  <title>RSS Analyzer mit RAG</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header>
-    <div class="header-top">
+    <div class="header-container">
       <div class="logo">
-        <img src="/static/rssanswers.png" alt="Logo" height="40">
-        <span class="logo-text">RSS Answers</span>
+        <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo">
       </div>
-    </div>
-    <div class="header-search">
-      <form onsubmit="searchInformation(event);">
-        <input type="text" id="search-input" placeholder="Stellen Sie Ihre Frage an RSS Answers..." />
+      <form id="search-form" class="search-form" method="post" action="/rag">
+        <input id="search-input" type="text" name="question" placeholder="Frage eingeben…">
         <button type="submit">Suchen</button>
-        <span id="loading-indicator" class="small-spinner"></span>
+        <div id="spinner" class="spinner"></div>
       </form>
-    </div>
 
-    <!-- Ausgabe der Antwort -->
-    <div id="live-answer-box" class="live-answer-box">{{ answer|safe }}</div>
-    <!-- Leerzeile -->
-    <div style="height:1em;"></div>
-    <!-- Quellenverzeichnis -->
-    <div id="sources-box" class="sources-box"></div>
+      <div id="live-answer-box" class="answer-box"></div>
+      <div id="sources-box"    class="sources-box"></div>
+
+    </div>
   </header>
 
-  <!-- Fixed Artikel-Alter-Panel -->
-  <div class="article-age-overview">
-    <h3>Artikel Alter</h3>
-    <ul id="age-overview-list">
-      <li data-filter="1">1 Tag (<span id="count-1">0</span>)</li>
-      <li data-filter="2">2 Tage (<span id="count-2">0</span>)</li>
-      <li data-filter="3">3 Tage (<span id="count-3">0</span>)</li>
-      <li data-filter="3+">Mehr als 3 Tage (<span id="count-3plus">0</span>)</li>
-      <li data-filter="7+">Mehr als 1 Woche (<span id="count-7plus">0</span>)</li>
+  <!-- Statistiken (300px breit, rechts oben) -->
+  <details class="stats">
+    <summary class="stats-summary">Statistiken anzeigen</summary>
+    <ul class="stats-list">
+      <li>Heute: {{ counts.today }}</li>
+      <li>Letzte 3 Tage: {{ counts['3_days'] - counts.today }}</li>
+      <li>Letzte 7 Tage: {{ counts['7_days'] - counts['3_days'] }}</li>
+      <li>Letzte 14 Tage: {{ counts['14_days'] - counts['7_days'] }}</li>
     </ul>
+  </details>
+
+  <!-- Top-Artikel heute -->
+  <div class="top-articles">
+    <h2>Top-Artikel heute ({{ top_articles|length }})</h2>
+    {% for art in top_articles %}
+      <details class="article">
+        <summary>
+          <div class="title">
+            <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
+          </div>
+          <div class="meta">
+            {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
+          </div>
+          <div class="preview-content">
+            {{ art.summary|truncatewords(100) }}
+          </div>
+        </summary>
+        <div class="full-content">{{ art.content|trim }}</div>
+      </details>
+    {% endfor %}
   </div>
 
-  <main>
-    <div class="container">
-      {% if top_articles %}
-        <h2>Top Artikel von Heute</h2>
-        {% for article in top_articles %}
-          <details class="article" data-published="{{ article.published }}">
-            <summary>
-              <div class="title">
-                <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
-              </div>
-              <div class="meta">
-                Veröffentlicht: {{ article.published }} | Thema: {{ article.topic }} | Wichtigkeit: {{ article.importance }}
-              </div>
-              <div class="preview-content">
-                {{ article.content | first_words }}
-              </div>
-            </summary>
-            <div class="full-content">
-              {{ article.content | truncatewords(500) }}
-            </div>
-          </details>
-        {% endfor %}
-      {% endif %}
-
-      <h2>Heutige Artikel</h2>
-      {% for article in articles %}
-        <details class="article" data-published="{{ article.published }}">
-          <summary>
-            <div class="title">
-              <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
-            </div>
-            <div class="meta">
-                Veröffentlicht: {{ article.published }} | Thema: {{ article.topic }} | Wichtigkeit: {{ article.importance }}
-            </div>
-            <div class="preview-content">
-              {{ article.content | first_words }}
-            </div>
-          </summary>
-          <div class="full-content">
-            {{ article.content | truncatewords(500) }}
+  <!-- Alle Artikel -->
+  <div class="all-articles">
+    <h2>Alle Artikel</h2>
+    {% for art in articles %}
+      <details class="article">
+        <summary>
+          <div class="title">
+            <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
           </div>
-        </details>
-      {% endfor %}
+          <div class="meta">
+            {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
+          </div>
+          <div class="preview-content">
+            {{ art.summary|truncatewords(100) }}
+          </div>
+        </summary>
+        <div class="full-content">{{ art.content|trim }}</div>
+      </details>
+    {% endfor %}
+  </div>
 
-      <div class="load-more">
-        <a href="?time_filter=3_days">Mehr Artikel der letzten 3 Tage</a> |
-        <a href="?time_filter=7_days">Mehr Artikel der letzten 7 Tage</a> |
-        <a href="?time_filter=14_days">Mehr Artikel der letzten 14 Tage</a>
-      </div>
-    </div>
-  </main>
-
-  <script>
-    async function searchInformation(event) {
-      event.preventDefault();
-      const question = document.getElementById("search-input").value;
-      document.getElementById("loading-indicator").style.display = "inline-block";
-      const answerBox  = document.getElementById("live-answer-box");
-      const sourcesBox = document.getElementById("sources-box");
-      answerBox.innerHTML = "";
-      sourcesBox.innerHTML = "";
-
-      try {
-        const res = await fetch("/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question })
-        });
-        const data = await res.json();
-        document.getElementById("loading-indicator").style.display = "none";
-
-        // Antwort anzeigen
-        answerBox.innerHTML = data.answer;
-        answerBox.style.display = "block";
-
-        // Quellenverzeichnis
-        if (data.sources && data.sources.length) {
-          let html = "<ul>";
-          data.sources.forEach((s, i) => {
-            html += `<li>[${i+1}] <a href="${s.link}" target="_blank" rel="noopener noreferrer">${s.title}</a></li>`;
-          });
-          html += "</ul>";
-          sourcesBox.innerHTML = html;
-        }
-      } catch (err) {
-        document.getElementById("loading-indicator").style.display = "none";
-        answerBox.innerHTML = "Fehler bei der Suche.";
-        answerBox.style.display = "block";
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("search-input")
-              .addEventListener("keydown", e => { if (e.key === "Enter") searchInformation(e); });
-      initArticleAgeFilter();
-    });
-
-    function initArticleAgeFilter() {
-      const articles = document.querySelectorAll(".article");
-      const refTime = articles.length
-        ? new Date(articles[0].getAttribute("data-published"))
-        : new Date();
-
-      const counts = {0:0,1:0,2:0,"3+":0,"7+":0};
-      articles.forEach(a => {
-        const pd = a.getAttribute("data-published");
-        if (!pd) return;
-        const diff = Math.floor((refTime - new Date(pd)) / (1000*60*60*24));
-        a.dataset.age = diff;
-        if (diff === 0) { a.style.display = ""; counts[0]++; }
-        else { a.style.display = "none"; }
-        if (diff === 1) counts[1]++;
-        if (diff === 2) counts[2]++;
-        if (diff >= 3 && diff < 7) counts["3+"]++;
-        if (diff >= 7) counts["7+"]++;
-      });
-      const idMap = {"0":"count-1","1":"count-2","2":"count-3","3+":"count-3plus","7+":"count-7plus"};
-      Object.keys(idMap).forEach(key => {
-        const el = document.getElementById(idMap[key]);
-        if (el) el.innerText = counts[key];
-      });
-      document.querySelectorAll(".article-age-overview li").forEach(li => {
-        li.addEventListener("click", function() {
-          document.querySelectorAll(".article-age-overview li")
-                  .forEach(x => x.classList.remove("active"));
-          this.classList.add("active");
-          const f = this.getAttribute("data-filter");
-          articles.forEach(a => {
-            const age = parseInt(a.dataset.age, 10);
-            const show = (
-              (f === "1" && age === 0) ||
-              (f === "2" && age === 1) ||
-              (f === "3" && age === 2) ||
-              (f === "3+" && age >= 3 && age < 7) ||
-              (f === "7+" && age >= 7)
-            );
-            a.style.display = show ? "" : "none";
-          });
-        });
-      });
-      const defaultLi = document.querySelector('.article-age-overview li[data-filter="1"]');
-      if (defaultLi) defaultLi.classList.add("active");
-    }
-  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

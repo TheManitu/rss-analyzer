@@ -1,3 +1,5 @@
+# storage/topic_tracker.py
+
 import duckdb
 from config import DB_PATH
 
@@ -22,22 +24,27 @@ def update_topic(topic_name, delta=1):
         new_count = existing[0] + delta
         is_complete = new_count >= 3
         con.execute(
-            "UPDATE topics SET article_count = ?, is_complete = ?, last_updated = CURRENT_TIMESTAMP WHERE topic = ?",
+            "UPDATE topics "
+            "SET article_count = ?, is_complete = ?, last_updated = CURRENT_TIMESTAMP "
+            "WHERE topic = ?",
             (new_count, is_complete, topic_name)
         )
     else:
         is_complete = delta >= 3
         con.execute(
-            "INSERT INTO topics (topic, article_count, is_complete) VALUES (?, ?, ?)",
+            "INSERT INTO topics (topic, article_count, is_complete) "
+            "VALUES (?, ?, ?)",
             (topic_name, delta, is_complete)
         )
     con.close()
 
 def get_all_topics():
-    con = duckdb.connect(DB_PATH)
-    rows = con.execute(
-        "SELECT topic, article_count, is_complete, last_updated FROM topics"
-    ).fetchall()
+    con = duckdb.connect(DB_PATH, read_only=True)
+    rows = con.execute("""
+        SELECT topic, article_count, is_complete, last_updated
+        FROM topics
+        ORDER BY article_count DESC
+    """).fetchall()
     con.close()
     topics = []
     for topic, count, complete, last in rows:

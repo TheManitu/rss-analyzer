@@ -28,7 +28,7 @@ Dieses Open-Source-Projekt sammelt, bereinigt und analysiert RSS-Feed-Artikel lo
   - Wichtigste Artikel: Vollständige Zusammenfassung (≤ 500 Wörter)  
   - Nebensätze: Kurzfassung (≤ 200 Zeichen)  
   - Ausgabe ausschließlich auf Deutsch  
-  - Prompt-Vorlagen im Verzeichnis `prompt_templates/`  
+  - Prompt-Vorlagen im Verzeichnis `prompt_templates/`
 
 - **REST-API (Flask)**  
   - Endpoint `/search`: liefert Top-5 Kandidaten (`title`, `link`) als JSON für Frontend  
@@ -37,7 +37,7 @@ Dieses Open-Source-Projekt sammelt, bereinigt und analysiert RSS-Feed-Artikel lo
 - **Web-UI**  
   - Indexseite mit Suchfeld, Antwort und klickbarer Quellenliste  
   - Unter der Antwort eine Leerzeile und `.sources-box` für Quellenlinks  
-  - Template-Filter `|striptags`, `first_words`, `truncatewords` in `app.py`  
+  - Template-Filter `|striptags`, `first_words`, `truncatewords` in `api/`  
 
 - **Styling**  
   - `static/style.css` enthält `.sources-box`-Styles sowie allgemeines Layout  
@@ -47,36 +47,42 @@ Dieses Open-Source-Projekt sammelt, bereinigt und analysiert RSS-Feed-Artikel lo
 
 ## Projektstruktur
 
-rss-analyzer/ ├── docker/
-│ └── docker-compose.yml # Zookeeper, Kafka, Spark ├── prompt_templates/
+rss-analyzer/
+├── docker/
+│ └── docker-compose.yml # Zookeeper, Kafka, Prometheus, Grafana, API, …
+├── prompt_templates/
 │ └── *.tpl
-├── rss_analyzer/
-│ ├── config.py
-│ ├── ingestion/
-│ │ └── rss_ingest.py
-│ ├── storage/
-│ │ └── duckdb_storage.py
-│ ├── retrieval/
-│ │ └── hybrid_retrieval.py │ ├── ranking/
-│ │ └── cross_encoder_ranker.py │ ├── generation/
-│ │ └── llm_generator.py
-│ ├── evaluation/
-│ │ └── quality_evaluator.py │ ├── api/
-│ │ └── app.py
-│ └── topic_tracker.py
+├── api/ # Flask-Blueprints & App-Factory
+│ ├── rag.py
+│ ├── analytics.py
+│ ├── utils.py
+│ └── api.py
+├── ingestion/
+│ └── rss_ingest.py
+├── storage/
+│ └── duckdb_storage.py
+├── retrieval/
+│ └── hybrid_retrieval.py
+│ └── cross_encoder_ranker.py
+├── evaluation/
+│ └── quality_evaluator.py
+├── filter/
+│ └── content_filter.py
+├── logging_service/
+│ └── kafka_config_and_logger.py
 ├── templates/
-│ └── *.html
+│ └── index.html
 ├── static/
-│ └── style.css
-├── analytics/
-│ └── spark_analytics.py
+│ ├── style.css
+│ └── app.js
+├── data/
+│ └── rssfeed.duckdb
 ├── scripts/
 │ └── recalc_importance.py
-├── storage/
-│ └── metrics_schema.sql
 ├── tests/
 │ └── *.py
 ├── requirements.txt
+├── Makefile
 └── README.md
 
 
@@ -84,14 +90,14 @@ rss-analyzer/ ├── docker/
 
 ## Installation & Start
 
-1. **Klone das Repo**
-   ```bash
-   git clone https://github.com/<user>/rss-analyzer.git
-   cd rss-analyzer
+1. **Repo klonen**  
+   bash
+  ``` git clone https://github.com/<user>/rss-analyzer.git```
+   ```cd rss-analyzer```
 
-    DB zurücksetzen
+    Datenbank zurücksetzen (optional)
 
-  ```rm -f data/rssfeed.duckdb```
+```rm -f data/rssfeed.duckdb```
 
 Dependencies installieren
 
@@ -99,104 +105,73 @@ Dependencies installieren
 
 Docker-Services starten
 
-```docker-compose up -d --build```
+```make build```      # Image bauen & alle Services starten
+# oder einzeln:
+```make up```         # = make build
 
-Web-UI direkt lokal starten (ohne Kafka/Spark)
+Web-UI direkt lokal (ohne Kafka/Spark)
 
-    ```python -m rss_analyzer.api.app```
-
-    → http://localhost:5000
+```python -m api.app```
+# → http://localhost:5000
 
 Tests
 
-pytest tests/
+    ```pytest tests/```
 
-Neue Funktionen
+Makefile-Befehle
+
+# Build und Start
+```make build```           # Image bauen und alle Services im Hintergrund starten
+```make up ```             # Alias für make build
+```make down```            # Alle Services stoppen und entfernen
+
+# Logs
+```make logs-api```        # API-Logs (alias: make log, make l)
+```make logs-all```        # Logs aller Services
+```make logs-kafka```      # Kafka-Logs
+```make logs-prometheus``` # Prometheus-Logs
+```make logs-grafana```    # Grafana-Logs
+
+# Ingestion & Analytics
+```make ingest```          # RSS-Ingestion im API-Container (stoppt Spark temporär)
+```make recalc```          # Neuberechnung der article.importance via scripts/recalc_importance.py
+
+# Weitere Aliase
+```make log```             # Alias für make logs-api
+```make l ```              # Alias für make logs-api
+
+Neue Funktionen seit letztem Release
 
     Persistentes Question-Tracking
 
-        Tabelle question_events in DuckDB speichert jede gestellte Frage (Timestamp, Question-Text, Topic, Kandidaten-Anzahl).
+        Tabelle question_events in DuckDB speichert jede Suche
 
-        API-Funktion store_question_event() in api/app.py legt Eintrag bei jeder Suche an.
+        /metrics-Endpoint für Prometheus
 
-    Dynamische Importance-Berechnung
+    Hybride Importance-Berechnung
 
-        Methode recalc_importance() in storage/duckdb_storage.py gewichtet normierte Views, Frage-Refs und Quality-Flags.
+        Methode recalc_importance() in duckdb_storage.py
 
-        Skript scripts/recalc_importance.py initialisiert Metrik-Tabellen und berechnet articles.importance neu ohne Code-Änderung (Steuerung via ENV-Variablen W_VIEWS, W_REFS, W_FLAG).
+        CLI-Script make recalc
 
     Erweitertes Analytics-Dashboard
 
-        /analytics-Endpoint liefert nun:
+        /analytics: Top-Fragen, Stunden-Verteilung, Artikel-Views
 
-            Top-10 meistgestellte Fragen (aus question_events)
+    ContentFilter Modul
 
-            Fragen pro Stunde (aus question_events)
+        Themen- und Duplikatsfilterung vor Retrieval
 
-            Top-10 meistgelesene Artikel (aus article_metrics)
+    Qualitätsmetriken
 
-        Tabelle answer_quality_flags angelegt für späteres Qualitäts-Monitoring.
-
-    Spark-Streaming
-
-        Job analytics/spark_analytics.py liest Kafka-Events (UserQuestions, ArticleViews) und schreibt:
-
-            article_metrics (Views + Refs)
-
-            topic_metrics (Views + Questions)
-
-            question_stats_history (globale Frage-Stats)
-
-Neue Dateien
-
-    storage/metrics_schema.sql: DDL für article_metrics, topic_metrics, question_events, answer_quality_flags, u.v.m.
-
-    analytics/spark_analytics.py: PySpark-Job für Live-Aggregationen aus Kafka → DuckDB
-
-    scripts/recalc_importance.py: CLI-Skript zum Neuberechnen von articles.importance
-
-    Modifikation: storage/duckdb_storage.py ergänzt Methode recalc_importance()
-
-    Modifikation: api/app.py fügt Funktion store_question_event() und /analytics-Logik hinzu
-
-    Neues Modul: logging_service/kafka_config_and_logger.py (Kafka-Producer + Schemas)
+        NDCG & MAP im quality_evaluator.py
 
 Erweiterungsmöglichkeiten
 
-    Antwort-Qualitätsmetriken
+    Observability & Alerts über Grafana/Prometheus
 
-        Speichere den QualityEvaluator-Score pro Antwort in answer_quality_scores.
+    Personalisierung via user_id/session_id
 
-        Visualisiere im Dashboard, welche Artikel in besonders hochwertigen Antworten genutzt werden.
+    Automatische Gewichtungsoptimierung (Bayes/Grid Search)
 
-    Time-Series-Visualisierung
-
-        Exporte nach Grafana/Prometheus für: Fragen- und Views-Trends, Entwicklung der importance-Scores.
-
-    Feinere Rating-Modelle
-
-        Manueller Nutzer-Feedback-Score (Like/Dislike), Recency-Bonus, Z-Score-Normierung.
-
-    Skalierbare Storage-Backends
-
-        Delta Lake / Iceberg für Time-Travel und Versionierung großer Datenmengen.
-
-Verbesserungspotential
-
-    Observability & Alerting
-
-        Überwache Kafka-Offsets, Spark-Checkpoints, DuckDB-Latenzen.
-
-        Alerts bei Anomalien: z.B. plötzlicher Anstieg von Zero-Candidate-Fragen oder Abfall der Average Quality.
-
-    Automatische Gewichtungsoptimierung
-
-        Grid-Search oder Bayesian Optimization für (W_VIEWS, W_REFS, W_FLAG) anhand historischer Daten.
-
-    Langzeit-Archivierung
-
-        Periodische Exporte nach Data Warehouse (z.B. BigQuery) für Deep-Dives.
-
-    User-Segmentierung & Personalisierung
-
-        Logge user_id und session_id für Verhaltensanalysen und personalisierte Empfehlungen.
+    Langzeit-Archivierung in BigQuery oder Data Warehouse

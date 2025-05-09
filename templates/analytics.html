@@ -1,49 +1,80 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <title>Analytics Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        h1, h2 { color: #2c3e50; }
-        .metric { margin-bottom: 2em; }
-        table { border-collapse: collapse; width: 60%; }
-        th, td { border: 1px solid #ccc; padding: 8px; }
-        th { background: #f4f4f4; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Analytics Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-<h1>Nutzer-Analytics</h1>
+  <header>
+    <div class="header-container">
+      <div class="logo">
+        <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo" height="40" />
+        <span class="logo-text">RSS Answers</span>
+      </div>
+      <nav class="search-form">
+        <a href="{{ url_for('index') }}">Home</a>
+      </nav>
+    </div>
+    <div class="article-counter">
+      {{ questions_total }} Fragen verarbeitet
+    </div>
+  </header>
 
-<div class="metric">
-    <h2>Meistgestellte Fragen</h2>
-    <table>
-        <tr><th>Frage</th><th>Anzahl</th></tr>
-        {% for question, count in top_questions %}
-        <tr><td>{{ question }}</td><td>{{ count }}</td></tr>
-        {% endfor %}
-    </table>
-</div>
+  <main>
+    <section class="sources-box">
+      <h2>Meistgestellte Fragen</h2>
+      <table>
+        <thead>
+          <tr><th>Frage</th><th>Anzahl</th></tr>
+        </thead>
+        <tbody>
+          {% for question, count in top_questions %}
+          <tr>
+            <td>{{ question }}</td>
+            <td>{{ count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
 
-<div class="metric">
-    <h2>Fragen pro Stunde</h2>
-    <table>
-        <tr><th>Uhrzeit</th><th>Anzahl</th></tr>
-        {% for hour, count in questions_by_hour %}
-        <tr><td>{{ hour }}</td><td>{{ count }}</td></tr>
-        {% endfor %}
-    </table>
-</div>
+    <section class="sources-box">
+      <h2>Fragen pro Stunde</h2>
+      <table>
+        <thead>
+          <tr><th>Stunde</th><th>Anzahl</th></tr>
+        </thead>
+        <tbody>
+          {% for hour, count in questions_by_hour %}
+          <tr>
+            <td>{{ "%02d:00" % hour }}</td>
+            <td>{{ count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
 
-<div class="metric">
-    <h2>Meistgelesene Artikel</h2>
-    <table>
-        <tr><th>Artikel-ID</th><th>Aufrufe</th></tr>
-        {% for article_id, count in top_articles %}
-        <tr><td>{{ article_id }}</td><td>{{ count }}</td></tr>
-        {% endfor %}
-    </table>
-</div>
+    <section class="sources-box">
+      <h2>Meistgelesene Artikel</h2>
+      <table>
+        <thead>
+          <tr><th>Artikel-Link</th><th>Aufrufe</th></tr>
+        </thead>
+        <tbody>
+          {% for link, count in top_article_views %}
+          <tr>
+            <td><a href="{{ link }}" target="_blank">{{ link }}</a></td>
+            <td>{{ count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
 
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

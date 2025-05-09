@@ -3,8 +3,7 @@ services:
     image: bitnami/zookeeper:3.8
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
-    ports:
-      - "2181:2181"
+    # kein 'ports:'-Block mehr → bindet nicht an den Host
     restart: always
 
   kafka:
@@ -22,25 +21,35 @@ services:
 
   api:
     build: .
-    container_name: api
     working_dir: /app
     environment:
       - PYTHONPATH=/app
-      - DB_PATH=/app/data/rssfeed.duckdb
-      - KAFKA_BOOTSTRAP=kafka:9092
-      - OLLAMA_HOST=http://ollama:11434
-      - LLM_CHAT_LOG_DIR=/app/logs
+      - DB_PATH=${DB_PATH:-/app/data/rssfeed.duckdb}
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+      - LLM_CHAT_LOG_DIR=${LLM_CHAT_LOG_DIR:-/app/logs}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gcp-sa.json
+      - BQ_PROJECT=${BQ_PROJECT:-dein-gcp-projekt}
+      - BQ_DATASET=${BQ_DATASET:-rss_analytics}
+      - RETRIEVAL_CANDIDATES=${RETRIEVAL_CANDIDATES:-10}
+      - MIN_PASSTAGE_SCORE=${MIN_PASSTAGE_SCORE:-0.2}
+      - HYBRID_WEIGHT_SEMANTIC=${HYBRID_WEIGHT_SEMANTIC:-0.6}
+      - HYBRID_WEIGHT_KEYWORD=${HYBRID_WEIGHT_KEYWORD:-0.4}
+      - RECENCY_WEIGHT=${RECENCY_WEIGHT:-0.1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      - CROSS_ENCODER_MODEL=${CROSS_ENCODER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      - LLM_MODEL_INITIAL=${LLM_MODEL_INITIAL:-mistral-openorca}
+      - LLM_MODEL_REFINE=${LLM_MODEL_REFINE:-mistral-openorca}
+      - FINAL_CONTEXTS=${FINAL_CONTEXTS:-5}
     volumes:
+      - .:/app
       - rssdata:/app/data
+      - ./scripts:/app/scripts:ro
       - ./logs:/app/logs
-    ports: ["5000:5000"]
-    command: >
-      bash -c "
-        echo '→ RSS-Ingest starten';
-        python -u -m ingestion.rss_ingest &&
-        echo '→ Ingest fertig, starte API';
-        python -u -m api.app
-      "
+      - ./docker/credentials/gcp-sa.json:/app/credentials/gcp-sa.json:ro
+    ports:
+      - "5000:5000"
+    command: ["python", "-u", "-m", "api.api"]
     depends_on:
       - kafka
       - ollama
@@ -64,14 +73,15 @@ services:
       - ./:/app
       - rssdata:/data
     environment:
-      - KAFKA_BOOTSTRAP=kafka:9092
-      - DB_PATH=/data/rssfeed.duckdb
-    command: >
-      bash -c "pip install duckdb && \
-        /opt/bitnami/spark/bin/spark-submit \
-        --master local[2] \
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1 \
-        /app/analytics/spark_analytics.py"
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - DB_PATH=${DB_PATH:-/data/rssfeed.duckdb}
+    command:
+      - "/opt/bitnami/spark/bin/spark-submit"
+      - "--master"
+      - "local[2]"
+      - "--packages"
+      - "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1"
+      - "/app/analytics/spark_analytics.py"
     ports:
       - "4040:4040"
     depends_on:
@@ -86,14 +96,17 @@ services:
       - ./:/app
       - rssdata:/data
     environment:
-      - KAFKA_BOOTSTRAP=kafka:9092
-    command: >
-      /opt/bitnami/spark/bin/spark-submit \
-      --master local[2] \
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1 \
-      /app/analytics/spark_quality_checks.py
+      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - DB_PATH=${DB_PATH:-/data/rssfeed.duckdb}
+    command:
+      - "/opt/bitnami/spark/bin/spark-submit"
+      - "--master"
+      - "local[2]"
+      - "--packages"
+      - "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.1"
+      - "/app/analytics/spark_quality_checks.py"
     ports:
-      - "4041:4040"
+      - "4041:4041"
     depends_on:
       - kafka
     restart: always

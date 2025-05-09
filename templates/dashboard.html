@@ -1,40 +1,54 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>RSS Answers Dashboard</title>
-  <meta name="description" content="RSS Answers Dashboard – Übersicht über Themen und Artikel.">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <div class="container mt-4">
-    <h1>RSS Answers Dashboard</h1>
-    <table class="table table-striped">
-      <thead>
-        <tr>
-          <th>Thema</th>
-          <th>Artikelanzahl</th>
-          <th>Status</th>
-          <th>Letzte Aktualisierung</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in topics %}
-        <tr>
-          <td>{{ t.topic }}</td>
-          <td>{{ t.article_count }}</td>
-          <td>
-            {% if t.is_complete %}
-              <span class="badge bg-success">Abgedeckt</span>
-            {% else %}
-              <span class="badge bg-warning">Fehlend</span>
-            {% endif %}
-          </td>
-          <td>{{ t.last_updated }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <header>
+    <div class="header-container">
+      <div class="logo">
+        <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo" height="40" />
+        <span class="logo-text">RSS Answers</span>
+      </div>
+      <nav class="search-form">
+        <a href="{{ url_for('index') }}">Home</a>
+      </nav>
+    </div>
+    <div class="article-counter">
+      {{ topics|length }} Themen überwacht
+    </div>
+  </header>
+
+  <main>
+    <section class="sources-box">
+      <h2>Themen-Übersicht</h2>
+      <table>
+        <thead>
+          <tr><th>Thema</th><th>Anzahl Artikel</th><th>Status</th><th>Letzte Aktualisierung</th></tr>
+        </thead>
+        <tbody>
+          {% for t in topics %}
+          <tr>
+            <td>{{ t.topic }}</td>
+            <td>{{ t.article_count }}</td>
+            <td>
+              {% if t.is_complete %}
+                <span class="badge badge-success">Abgedeckt</span>
+              {% else %}
+                <span class="badge badge-warning">Fehlt</span>
+              {% endif %}
+            </td>
+            <td>{{ t.last_updated.strftime('%d.%m.%Y %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

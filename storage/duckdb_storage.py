@@ -1,23 +1,19 @@
-# storage/duckdb_storage.py
-
 import duckdb
 from config import DB_PATH
+from sentence_transformers import SentenceTransformer, util
+
 
 class DuckDBStorage:
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
         self.create_table()
+        self._ensure_keywords_table()
 
     def connect(self, read_only: bool = False):
         return duckdb.connect(self.db_path, read_only=read_only)
 
     def create_table(self):
-        """
-        Legt die articles-Tabelle an (ohne Auto-Increment).
-        Entfernt automatisch alte Artikel (>14 Tage).
-        """
         con = self.connect()
-        # Artikeltabelle
         con.execute("""
             CREATE TABLE IF NOT EXISTS articles (
                 title TEXT,
@@ -33,10 +29,20 @@ class DuckDBStorage:
                 UNIQUE(title, link)
             );
         """)
-        # Alte Artikel entfernen
         con.execute("""
             DELETE FROM articles
             WHERE published < CURRENT_DATE - INTERVAL '14 days';
+        """)
+        con.close()
+
+    def _ensure_keywords_table(self):
+        con = self.connect()
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS article_keywords (
+                link    TEXT,
+                keyword TEXT,
+                UNIQUE(link, keyword)
+            );
         """)
         con.close()
 
@@ -49,62 +55,33 @@ class DuckDBStorage:
         con.close()
         return count > 0
 
-    def insert_article(
-        self,
-        title: str,
-        link: str,
-        description: str,
-        content: str,
-        summary: str,
-        translation: str,
-        published,
-        topic: str,
-        importance: float,
-        relevance: int
-    ):
-        """
-        Fügt einen neuen Artikel ein, wenn er noch nicht existiert.
-        """
+    def insert_article(self, title, link, description, content, summary, translation, published, topic, importance, relevance):
         if self.article_exists(title, link):
             return
         con = self.connect()
-        con.execute(
-            """
+        con.execute("""
             INSERT INTO articles
                 (title, link, description, content, summary, translation,
                  published, topic, importance, relevance)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
-            (title, link, description, content, summary, translation,
-             published, topic, importance, relevance)
-        )
+        """, (title, link, description, content, summary, translation,
+              published, topic, importance, relevance))
         con.close()
 
     def get_all_links(self) -> list:
-        """
-        Liefert alle in der DB gespeicherten Links zurück.
-        """
         con = self.connect(read_only=True)
         rows = con.execute("SELECT link FROM articles").fetchall()
         con.close()
         return [r[0] for r in rows]
 
     def get_all_articles(self, time_filter: str = '14_days') -> list:
-        """
-        Liefert alle Artikel als Liste von Dicts zurück (für die UI).
-        """
         con = self.connect(read_only=True)
-
-        if time_filter == 'today':
-            cond = "published = CURRENT_DATE"
-        elif time_filter == '3_days':
-            cond = "published >= CURRENT_DATE - INTERVAL '3 days'"
-        elif time_filter == '7_days':
-            cond = "published >= CURRENT_DATE - INTERVAL '7 days'"
-        elif time_filter == '14_days':
-            cond = "published >= CURRENT_DATE - INTERVAL '14 days'"
-        else:
-            cond = "1=1"
+        cond = {
+            'today':   "published = CURRENT_DATE",
+            '3_days':  "published >= CURRENT_DATE - INTERVAL '3 days'",
+            '7_days':  "published >= CURRENT_DATE - INTERVAL '7 days'",
+            '14_days': "published >= CURRENT_DATE - INTERVAL '14 days'"
+        }.get(time_filter, "1=1")
 
         rows = con.execute(f"""
             SELECT title, published, topic, importance,
@@ -132,37 +109,15 @@ class DuckDBStorage:
         return articles
 
     def fetch_passages(self, time_filter: str = '14_days') -> list:
-        """
-        Alias auf get_all_articles (für den Retriever).
-        """
         return self.get_all_articles(time_filter)
 
     def execute(self, sql: str):
-        """
-        Utility für Ad-hoc-SQL (z.B. Cleanup oder Analysen).
-        """
         con = self.connect()
         con.execute(sql)
         con.close()
 
     def recalc_importance(self, w_views=0.4, w_refs=0.5, w_flag=0.1):
-        """
-        Berechnet die 'importance' neu nach dem Modell:
-          importance = w_views * norm_views
-                     + w_refs  * norm_refs
-                     - w_flag  * flag_rate
-
-        norm_views = view_count / max(view_count)
-        norm_refs  = ref_count  / max(ref_count)
-        flag_rate  = Anteil geflaggter Antworten pro Artikel
-
-        Erwartet:
-         - Tabelle `article_metrics(link TEXT PRIMARY KEY, view_count INT, ref_count INT, last_updated TIMESTAMP)`
-         - Tabelle `answer_quality_flags(link TEXT, flag BOOLEAN)` (optional; falls nicht vorhanden, setze w_flag=0)
-        """
         con = self.connect()
-
-        # Maximalwerte ermitteln (Vermeidung von Division durch 0)
         max_views, max_refs = con.execute("""
             SELECT
               COALESCE(MAX(view_count),1),
@@ -170,32 +125,102 @@ class DuckDBStorage:
             FROM article_metrics;
         """).fetchone()
 
-        # importance für alle Artikel aktualisieren
         con.execute(f"""
             UPDATE articles
             SET importance = (
-                -- normalisierte Views
-                COALESCE((
-                    SELECT view_count FROM article_metrics
-                    WHERE link = articles.link
-                ), 0) / {max_views} * {w_views}
-
-                -- normalisierte Frage-Refs
-              + COALESCE((
-                    SELECT ref_count FROM article_metrics
-                    WHERE link = articles.link
-                ), 0) / {max_refs} * {w_refs}
-
-                -- Qualitätsmalus durch Flag-Rate
+                COALESCE((SELECT view_count FROM article_metrics WHERE link = articles.link), 0) / {max_views} * {w_views}
+              + COALESCE((SELECT ref_count  FROM article_metrics WHERE link = articles.link), 0) / {max_refs} * {w_refs}
               - COALESCE((
-                    SELECT COUNT(*) * 1.0
-                    FROM answer_quality_flags q
-                    WHERE q.link = articles.link
-                      AND q.flag = TRUE
-                ) / NULLIF((
-                    SELECT ref_count FROM article_metrics
-                    WHERE link = articles.link
-                ), 0), 0) * {w_flag}
+                    SELECT COUNT(*)*1.0
+                    FROM answer_quality_events q
+                    WHERE q.link = articles.link AND q.flag = TRUE
+                ) / NULLIF((SELECT ref_count FROM article_metrics WHERE link = articles.link), 0), 0) * {w_flag}
             );
         """)
         con.close()
+
+    def upsert_article_keywords(self, link: str, keywords: list, conn=None):
+        """
+        Speichert pro Artikel die extrahierten Keywords.
+        Alte Keywords für den Link werden vorher gelöscht.
+        Optional: Verbindung mitliefern, um mehrfach-Öffnungen zu vermeiden.
+        """
+        own_con = False
+        if conn is None:
+            conn = self.connect()
+            own_con = True
+
+        conn.execute("DELETE FROM article_keywords WHERE link = ?", (link,))
+        for kw in set(k.lower() for k in keywords if k.strip()):
+            conn.execute(
+                "INSERT INTO article_keywords (link, keyword) VALUES (?, ?)",
+                (link, kw)
+            )
+
+        if own_con:
+            conn.close()
+
+    def get_matching_links(self, query_terms: list) -> set:
+        if not query_terms:
+            return set()
+        con = self.connect(read_only=True)
+        terms = [t.lower() for t in query_terms if t.strip()]
+        placeholders = ",".join("?" for _ in terms)
+        rows = con.execute(
+            f"SELECT DISTINCT link FROM article_keywords WHERE keyword IN ({placeholders})",
+            tuple(terms)
+        ).fetchall()
+        con.close()
+        return {r[0] for r in rows}
+
+    def get_matching_links_advanced(self, query_terms: list[str], top_n: int = 10) -> list[str]:
+        """
+        Kombiniert Keyword-Matching und semantische Ähnlichkeit zur Artikelauswahl.
+        Gibt die besten Links zurück.
+        """
+        embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+        # Schritt 1: Alle Artikel laden
+        con = self.connect(read_only=True)
+        rows = con.execute("""
+            SELECT link, title, summary, content
+            FROM articles
+        """).fetchall()
+        con.close()
+
+        results = []
+        query_text = " ".join(query_terms)
+        query_emb = embedder.encode(query_text, normalize_embeddings=True)
+
+        for link, title, summary, content in rows:
+            text = f"{title} {summary or ''} {content or ''}"
+            keyword_score = sum(1 for term in query_terms if term in text.lower())
+            if keyword_score == 0:
+                continue
+
+            emb = embedder.encode(text, normalize_embeddings=True)
+            sim_score = float(util.cos_sim(query_emb, emb)[0])
+            combined_score = 0.7 * sim_score + 0.3 * min(keyword_score / 5.0, 1.0)
+            results.append((link, combined_score))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return [link for link, _ in results[:top_n]]
+
+
+def get_article_metadata(link: str) -> dict:
+    db = DuckDBStorage()
+    con = db.connect(read_only=True)
+
+    row = con.execute("SELECT published FROM articles WHERE link = ?", (link,)).fetchone()
+    pub_date = row[0] if row else None
+
+    stats = con.execute("SELECT view_count, ref_count FROM article_metrics WHERE link = ?", (link,)).fetchone()
+    views     = stats[0] if stats else 0
+    ref_count = stats[1] if stats else 0
+
+    con.close()
+    return {
+        "publication_date": pub_date,
+        "views":            views,
+        "ref_count":        ref_count
+    }

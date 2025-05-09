@@ -15,6 +15,7 @@ from config import RSS_FEEDS, DB_PATH, MIN_ARTICLE_WORDS, MAX_FETCH_WORKERS
 from storage.duckdb_storage import DuckDBStorage
 from storage.topic_tracker import create_topic_table, update_topic
 
+
 # Domains, für die nur die RSS-Summary genutzt wird (kein Fulltext-Scrape)
 SKIP_SCRAPE_DOMAINS = [
     'huggingface.co/blog',
