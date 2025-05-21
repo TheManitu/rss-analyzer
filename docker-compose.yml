@@ -1,50 +1,105 @@
+# docker-compose.yml
+
 services:
   zookeeper:
     image: bitnami/zookeeper:3.8
+    container_name: zookeeper
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-    # kein 'ports:'-Block mehr → bindet nicht an den Host
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    ports:
+      - "2181:2181"
     restart: always
 
   kafka:
     image: bitnami/kafka:3.5
+    container_name: kafka
     environment:
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
     ports:
       - "9092:9092"
     depends_on:
       - zookeeper
     restart: always
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    runtime: nvidia
+    # Erst Modell pullen, dann serve starten
+    entrypoint: >
+      sh -c "ollama pull mistral-openorca && ollama serve"
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: always
+
   api:
     build: .
+    container_name: api
     working_dir: /app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
-      - PYTHONPATH=/app
-      - DB_PATH=${DB_PATH:-/app/data/rssfeed.duckdb}
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
-      - LLM_CHAT_LOG_DIR=${LLM_CHAT_LOG_DIR:-/app/logs}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gcp-sa.json
-      - BQ_PROJECT=${BQ_PROJECT:-dein-gcp-projekt}
-      - BQ_DATASET=${BQ_DATASET:-rss_analytics}
-      - RETRIEVAL_CANDIDATES=${RETRIEVAL_CANDIDATES:-10}
-      - MIN_PASSTAGE_SCORE=${MIN_PASSTAGE_SCORE:-0.2}
-      - HYBRID_WEIGHT_SEMANTIC=${HYBRID_WEIGHT_SEMANTIC:-0.6}
-      - HYBRID_WEIGHT_KEYWORD=${HYBRID_WEIGHT_KEYWORD:-0.4}
-      - RECENCY_WEIGHT=${RECENCY_WEIGHT:-0.1}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
-      - CROSS_ENCODER_MODEL=${CROSS_ENCODER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
-      - LLM_MODEL_INITIAL=${LLM_MODEL_INITIAL:-mistral-openorca}
-      - LLM_MODEL_REFINE=${LLM_MODEL_REFINE:-mistral-openorca}
-      - FINAL_CONTEXTS=${FINAL_CONTEXTS:-5}
+      PYTHONPATH: /app
+      DB_PATH: ${DB_PATH:-/app/data/rssfeed.duckdb}
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      LLM_CHAT_LOG_DIR: ${LLM_CHAT_LOG_DIR:-/app/logs}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/gcp-sa.json
+      BQ_PROJECT: ${BQ_PROJECT:-dein-gcp-projekt}
+      BQ_DATASET: ${BQ_DATASET:-rss_analytics}
+
+      # RAG-Pipeline
+      RETRIEVAL_CANDIDATES: ${RETRIEVAL_CANDIDATES:-10}
+      MIN_PASSTAGE_SCORE: ${MIN_PASSTAGE_SCORE:-0.2}
+      HYBRID_WEIGHT_SEMANTIC: ${HYBRID_WEIGHT_SEMANTIC:-0.6}
+      HYBRID_WEIGHT_KEYWORD: ${HYBRID_WEIGHT_KEYWORD:-0.4}
+      RECENCY_WEIGHT: ${RECENCY_WEIGHT:-0.1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      CROSS_ENCODER_MODEL: ${CROSS_ENCODER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      LLM_MODEL_INITIAL: ${LLM_MODEL_INITIAL:-mistral-openorca}
+      LLM_MODEL_REFINE: ${LLM_MODEL_REFINE:-mistral-openorca}
+      FINAL_CONTEXTS: ${FINAL_CONTEXTS:-5}
+
+      # Summarizer
+      SUMMARY_MIN_LENGTH: ${SUMMARY_MIN_LENGTH:-50}
+      SUMMARY_MAX_LENGTH: ${SUMMARY_MAX_LENGTH:-500}
+      SUMMARY_BATCH_SIZE: ${SUMMARY_BATCH_SIZE:-10}
+      SUMMARY_MAX_TOKENS: ${SUMMARY_MAX_TOKENS:-1024}
+
+      # Segmentierung & Keywords
+      SEGMENTER_MODEL: ${SEGMENTER_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      KEYWORD_MODEL: ${KEYWORD_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+
+      # Startup-Skip-Flags
+      SKIP_INGEST_ON_STARTUP: ${SKIP_INGEST_ON_STARTUP:-false}
+      SKIP_KEYWORDS_ON_STARTUP: ${SKIP_KEYWORDS_ON_STARTUP:-false}
+      SKIP_TOPICS_ON_STARTUP: ${SKIP_TOPICS_ON_STARTUP:-false}
+      SKIP_RELEVANCE_ON_STARTUP: ${SKIP_RELEVANCE_ON_STARTUP:-false}
+      SKIP_SEGMENTATION_ON_STARTUP: ${SKIP_SEGMENTATION_ON_STARTUP:-false}
+      SKIP_SUMMARIZATION_ON_STARTUP: ${SKIP_SUMMARIZATION_ON_STARTUP:-false}
+      SKIP_ANALYZER_ON_STARTUP: ${SKIP_ANALYZER_ON_STARTUP:-true}
+      SKIP_DASHBOARD_ON_STARTUP: ${SKIP_DASHBOARD_ON_STARTUP:-true}
+
+      # Topic-Parameter
+      SYN_WEIGHT: ${SYN_WEIGHT:-2.0}
+      TOPIC_THRESHOLD_FACTOR: ${TOPIC_THRESHOLD_FACTOR:-1.2}
+      TOPIC_TITLE_WEIGHT: ${TOPIC_TITLE_WEIGHT:-1.0}
+      TOPIC_EMB_WEIGHT: ${TOPIC_EMB_WEIGHT:-0.5}
+      TOPIC_EMB_THRESHOLD: ${TOPIC_EMB_THRESHOLD:-0.3}
+
     volumes:
       - .:/app
       - rssdata:/app/data
-      - ./scripts:/app/scripts:ro
       - ./logs:/app/logs
       - ./docker/credentials/gcp-sa.json:/app/credentials/gcp-sa.json:ro
     ports:
@@ -55,26 +110,16 @@ services:
       - ollama
     restart: always
 
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    runtime: nvidia
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    restart: always
-
   spark-analytics:
     image: bitnami/spark:3
     container_name: spark-analytics
     working_dir: /app
     volumes:
-      - ./:/app
+      - .:/app
       - rssdata:/data
     environment:
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - DB_PATH=${DB_PATH:-/data/rssfeed.duckdb}
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      DB_PATH: ${DB_PATH:-/data/rssfeed.duckdb}
     command:
       - "/opt/bitnami/spark/bin/spark-submit"
       - "--master"
@@ -93,11 +138,11 @@ services:
     container_name: spark-quality
     working_dir: /app
     volumes:
-      - ./:/app
+      - .:/app
       - rssdata:/data
     environment:
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - DB_PATH=${DB_PATH:-/data/rssfeed.duckdb}
+      KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-kafka:9092}
+      DB_PATH: ${DB_PATH:-/data/rssfeed.duckdb}
     command:
       - "/opt/bitnami/spark/bin/spark-submit"
       - "--master"
@@ -113,4 +158,4 @@ services:
 
 volumes:
   rssdata:
-  ollama:
+  ollama_models:

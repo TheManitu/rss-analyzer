@@ -1,48 +1,38 @@
-# retrieval/content_filter.py
-
 import re
 from storage.duckdb_storage import DuckDBStorage
-from config import TOPIC_MAPPING
 
 class ContentFilter:
     """
-    Filtert eine Liste von Artikeln anhand von Themen-Keywords, Duplikaten und Mindestgröße.
+    Filtert eine Liste von Artikeln anhand von Duplikaten und Mindestgröße.
     """
-    def __init__(self, topic_mapping: dict = TOPIC_MAPPING):
-        self.topic_mapping = topic_mapping
+    def __init__(self):
         self.db = DuckDBStorage()
 
-    def apply(self, candidates: list, question: str) -> list:
+    def apply(self, candidates: list[dict], question: str) -> list[dict]:
         """
         :param candidates: Liste von Dicts mit keys 'title','link','content','summary','topic'
-        :param question:   Nutzerfrage zur Themenbestimmung
+        :param question:   Nutzerfrage zur Themenbestimmung (wird aktuell nicht genutzt)
         :return: Gefilterte Liste von Kandidaten
         """
-        q_lower = question.lower()
-        # Thema finden
-        topic = None
-        for t, data in self.topic_mapping.items():
-            if any(kw.lower() in q_lower for kw in data.get("keywords", [])):
-                topic = t
-                break
-        keywords = self.topic_mapping.get(topic or "Allgemein", {}).get("keywords", [])
-
         seen = set()
         out = []
         for art in candidates:
             link = art.get("link")
             if link in seen:
                 continue
-            text = (art.get("title","") + " " + art.get("content","") + " " + art.get("summary","")).lower()
-            # Keyword-Filter
-            if keywords and not any(kw.lower() in text for kw in keywords):
-                continue
-            # Mindestlänge
+            text = (art.get("title","") + " " +
+                    art.get("content","") + " " +
+                    art.get("summary","")).lower()
+            # Mindestlänge: mindestens 10 Wörter
             if len(text.split()) < 10:
                 continue
             seen.add(link)
             out.append(art)
         return out
+
+    # Für Kompatibilität mit api.py (ruft `.filter(...)` auf)
+    def filter(self, question: str, candidates: list[dict]) -> list[dict]:
+        return self.apply(candidates, question)
 
 
 class QualityFlags:
@@ -56,8 +46,6 @@ class QualityFlags:
 def check_quality_flags(article: dict) -> QualityFlags:
     """
     Liest aus der Tabelle `answer_quality_flags`, wie viele Flags gesetzt sind.
-    :param article: Dict mit mindestens key 'link'
-    :return: QualityFlags(rate), rate in [0,1]
     """
     db  = DuckDBStorage()
     con = db.connect(read_only=True)
@@ -84,13 +72,12 @@ def check_quality_flags(article: dict) -> QualityFlags:
 
 def keyword_filter(keywords: list, top_n: int = 500) -> list:
     """
-    Führt ein Pre-Filtering durch: liefert die Top-n Artikel-Links,
+    Führt ein Pre-Filtering durch: liefert Top-n Artikel-Links,
     deren title ODER content eines der Keywords enthält.
     """
     db  = DuckDBStorage()
     con = db.connect(read_only=True)
 
-    # Baue WHERE-Klausel
     clauses = " OR ".join(
         f"title ILIKE '%{kw}%' OR content ILIKE '%{kw}%'"
         for kw in keywords

@@ -1,11 +1,14 @@
+# config.py
+
 import os
+from topic_config import TOPIC_MAPPING, TOPIC_SYNONYMS
 
 # Basis-Verzeichnisse und DB-Pfad
 BASE_DIR   = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_DB = os.path.join(BASE_DIR, "data", "rssfeed.duckdb")
 DB_PATH    = os.getenv("DB_PATH", DEFAULT_DB)
 
-# RSS-Feeds (inkl. erweiterter KI/AI-Quellen)
+# RSS-Feeds
 RSS_FEEDS = [
     "https://www.heise.de/rss/heise.rdf",
     "https://www.wired.com/feed/category/tech/latest/rss",
@@ -28,161 +31,68 @@ RSS_FEEDS = [
 ]
 
 # Clean-Up-Schwellen
-MIN_ARTICLE_WORDS = int(os.getenv("MIN_ARTICLE_WORDS", 200))
-MAX_ARTICLE_WORDS = int(os.getenv("MAX_ARTICLE_WORDS", 500))
-MAX_FETCH_WORKERS = int(os.getenv("MAX_FETCH_WORKERS", 10))
+MIN_ARTICLE_WORDS      = int(os.getenv("MIN_ARTICLE_WORDS",      150))
+MAX_PUNCT_RATIO        = float(os.getenv("MAX_PUNCT_RATIO",       0.30))
+MAX_FETCH_WORKERS      = int(os.getenv("MAX_FETCH_WORKERS",       10))
 
-# Topic-Mapping: Stichwörter → Topic-Kategorie
-TOPIC_MAPPING = {
-    "Allgemein": {"keywords": []},
+# Sprach- und Blacklist-Filter
+ALLOWED_LANGUAGES      = os.getenv("ALLOWED_LANGUAGES", "de,en").split(",")
+BLACKLIST_PATTERNS     = [
+    r"Jetzt abonnieren",
+    r"(?:Dies ist ein Teaser)",
+    r"Weiterlesen",
+    r"Sign up",
+    r"Enthält Blacklist-Muster"
+]
 
-    "OpenAI und GPT-Modelle": {
-        "keywords": [
-            "openai", "gpt-3", "gpt-4", "chatgpt", "dall-e", "codex",
-            "openai api", "open ai", "borts", "text-davinci"
-        ]
-    },
-    "Anthropic & Claude": {
-        "keywords": ["anthropic", "claude", "claude ai"]
-    },
-    "Google AI & Bard": {
-        "keywords": ["google ai", "bard", "gemini", "lambda"]
-    },
-    "Meta AI & LLaMA": {
-        "keywords": ["meta ai", "llama", "llama2", "fairseq"]
-    },
-    "Microsoft AI & Azure": {
-        "keywords": ["microsoft", "azure ai", "copilot", "bing chat"]
-    },
-    "Amazon AWS AI": {
-        "keywords": ["amazon", "aws ai", "sagemaker", "lex", "polly"]
-    },
+# Topic-Blacklist
+BLOCKED_TOPICS         = os.getenv("BLOCKED_TOPICS", "kaufempfehlung,produkttest").split(",")
+TOPIC_ALLOW_PREFIX     = os.getenv("TOPIC_ALLOW_PREFIX", "gaming")
 
-    "Apple Geräte & Dienste": {
-        "keywords": ["apple", "iphone", "ipad", "macos", "app store", "siri"]
-    },
-    "Google Produkte": {
-        "keywords": ["android", "chrome", "google home", "gmail", "youtube"]
-    },
-    "Meta & Soziale Medien": {
-        "keywords": ["facebook", "instagram", "whatsapp", "threads", "tiktok"]
-    },
+# Hybrid- & Recency-Gewichte
+HYBRID_WEIGHT_SEMANTIC = float(os.getenv("HYBRID_WEIGHT_SEMANTIC", 0.6))
+IMPORTANCE_WEIGHT      = float(os.getenv("IMPORTANCE_WEIGHT",      0.3))
+RECENCY_WEIGHT         = float(os.getenv("RECENCY_WEIGHT",         0.1))
 
-    "Künstliche Intelligenz & Maschinelles Lernen": {
-        "keywords": [
-            "ki", "künstliche intelligenz", "maschinelles lernen",
-            "deep learning", "neuronale netze", "transformer", "bert"
-        ]
-    },
-    "Cloud Computing & Infrastruktur": {
-        "keywords": [
-            "cloud", "saas", "iaas", "paas", "infrastruktur",
-            "docker", "kubernetes", "virtualisierung"
-        ]
-    },
-    "Software- und Hardware-Entwicklungen": {
-        "keywords": [
-            "software", "firmware", "chip", "prozessor", "grafikkarte",
-            "ssd", "ram", "motherboard"
-        ]
-    },
-    "IT-Sicherheit & Cybersecurity": {
-        "keywords": [
-            "cybersecurity", "datenschutz", "hacker", "malware",
-            "ransomware", "firewall", "zero day"
-        ]
-    },
-    "IoT & Vernetzte Systeme": {
-        "keywords": ["iot", "smart home", "sensor", "5g", "edge computing"]
-    },
-    "Robotik & autonome Systeme": {
-        "keywords": ["robotik", "drohne", "autonom", "fahrzeug", "automatisierung"]
-    },
-    "Wissenschaftliche Forschung & Durchbrüche": {
-        "keywords": [
-            "forschung", "experiment", "paper", "studie", "publikation",
-            "quantentechnologie", "biotech", "science"
-        ]
-    },
-    "Markttrends & Finanzen": {
-        "keywords": [
-            "aktie", "ipo", "start-up", "venture", "finanz",
-            "investment", "markttrend", "economie"
-        ]
-    },
-    "Digitalisierung & Politik": {
-        "keywords": [
-            "politik", "gesetz", "regulierung", "digitalisierung",
-            "compliance", "ethik", "zensur", "datenschutzerklärung"
-        ]
-    },
-    "Politik": {
-        "keywords": [
-            "politik", "regierung", "wahl", "bundestag",
-            "trump", "donald", "biden", "usa", "präsident",
-            "election", "parlament", "kanzler", "regierungskrise"
-        ]
-    },
-    "Wirtschaft": {
-        "keywords": [
-            "aktien", "markt", "bank", "finanzen",
-            "wirtschaft", "inflation", "rezession", "unternehmen"
-        ]
-    },
-    "Technologie": {
-        "keywords": [
-            "tech", "ki", "künstliche intelligenz", "cloud",
-            "software", "hardware", "chip", "microprocessor"
-        ]
-    },
-    "Wissenschaft": {
-        "keywords": ["studie", "forschung", "universität", "wissenschaft"]
-    },
-    "Gesundheit": {
-        "keywords": ["medizin", "gesundheit", "krankenhaus", "impfung"]
-    },
-}
+# Retrieval-Parameter
+RETRIEVAL_CANDIDATES   = int(os.getenv("RETRIEVAL_CANDIDATES",   10))
+MIN_PASSTAGE_SCORE     = float(os.getenv("MIN_PASSTAGE_SCORE",     0.1))
+SYN_WEIGHT             = float(os.getenv("SYN_WEIGHT",             2.0))
 
-# Score-Filter-Schwellen
-EXTRACTION_THRESHOLD      = float(os.getenv("EXTRACTION_THRESHOLD", 0.6))
-HIGH_SIMILARITY_THRESHOLD = float(os.getenv("HIGH_SIMILARITY_THRESHOLD", 0.85))
-LOW_SIMILARITY_THRESHOLD  = float(os.getenv("LOW_SIMILARITY_THRESHOLD", 0.5))
+# Modell-Konfigurationen
+EMBEDDING_MODEL        = os.getenv("EMBEDDING_MODEL",        "sentence-transformers/all-MiniLM-L6-v2")
+CROSS_ENCODER_MODEL    = os.getenv("CROSS_ENCODER_MODEL",    "cross-encoder/ms-marco-MiniLM-L-6-v2")
+KEYWORD_MODEL          = os.getenv("KEYWORD_MODEL",          EMBEDDING_MODEL)
+SEGMENTER_MODEL        = os.getenv("SEGMENTER_MODEL",        EMBEDDING_MODEL)
 
-# Hybrid-Fusionsgewichte (Embedding vs. BM25 vs. Importance)
-HYBRID_WEIGHT_SEMANTIC  = float(os.getenv("HYBRID_WEIGHT_SEMANTIC", 0.5))
-HYBRID_WEIGHT_KEYWORD   = float(os.getenv("HYBRID_WEIGHT_KEYWORD", 0.2))
-IMPORTANCE_WEIGHT       = float(os.getenv("IMPORTANCE_WEIGHT", 0.3))
+# Offenes LLM-Modell für Start & Zusammenfassung
+LLM_MODEL_INITIAL      = os.getenv("LLM_MODEL_INITIAL",      "mistral-openorca")
+LLM_MODEL_REFINE       = os.getenv("LLM_MODEL_REFINE",       "mistral-openorca")
+OLLAMA_HOST            = os.getenv("OLLAMA_HOST",            "http://ollama:11434")
 
-# Recency-Boost für neue Artikel
-RECENCY_WEIGHT = float(os.getenv("RECENCY_WEIGHT", 0.2))
+# Zusammenfassungs-Parameter
+SUMMARY_MIN_LENGTH     = int(os.getenv("SUMMARY_MIN_LENGTH",     50))
+SUMMARY_MAX_LENGTH     = int(os.getenv("SUMMARY_MAX_LENGTH",    500))
+SUMMARY_TEMPERATURE    = float(os.getenv("SUMMARY_TEMPERATURE",  0.0))
+SUMMARY_BATCH_SIZE     = int(os.getenv("SUMMARY_BATCH_SIZE",    10))
+SUMMARY_MAX_TOKENS     = int(os.getenv("SUMMARY_MAX_TOKENS",   1024))
 
-# Top-Kandidaten fürs Retrieval
-RETRIEVAL_CANDIDATES = int(os.getenv("RETRIEVAL_CANDIDATES", 10))
+# Merge Summary
+MERGE_SUMMARY_WORD_LIMIT = int(os.getenv("MERGE_SUMMARY_WORD_LIMIT", 500))
 
-# Mindestscore für Passage-Auswahl
-MIN_PASSTAGE_SCORE = float(os.getenv("MIN_PASSTAGE_SCORE", 0.1))
+# RAG-Pipeline-Parameter
+FINAL_CONTEXTS             = int(os.getenv("FINAL_CONTEXTS",             5))
+SUMMARY_BOOST              = float(os.getenv("SUMMARY_BOOST",              1.2))
+RECENCY_MAX_DAYS           = int(os.getenv("RECENCY_MAX_DAYS",           14))
+USE_STRICT_KEYWORD_FILTER  = os.getenv("USE_STRICT_KEYWORD_FILTER", "false").lower() in ("1","true","yes")
 
-# LLM-Modelle für Initial- und Refine-Schritte
-EMBEDDING_MODEL     = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-CROSS_ENCODER_MODEL = os.getenv("CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
-LLM_MODEL_INITIAL   = os.getenv("LLM_MODEL_INITIAL", "llama2:7b")
-LLM_MODEL_REFINE    = os.getenv("LLM_MODEL_REFINE",  "llama2:7b")
+# Topic-Parameter
+TOPIC_THRESHOLD_FACTOR = float(os.getenv("TOPIC_THRESHOLD_FACTOR", 1.2))
+TOPIC_TITLE_WEIGHT     = float(os.getenv("TOPIC_TITLE_WEIGHT",     1.0))
+TOPIC_EMB_MODEL        = os.getenv("TOPIC_EMB_MODEL",            EMBEDDING_MODEL)
+TOPIC_EMB_WEIGHT       = float(os.getenv("TOPIC_EMB_WEIGHT",       0.5))
+TOPIC_EMB_THRESHOLD    = float(os.getenv("TOPIC_EMB_THRESHOLD",    0.3))
 
-# Anzahl finaler Kontexte fürs LLM
-FINAL_CONTEXTS = int(os.getenv("FINAL_CONTEXTS", 5))
-MAX_CONTEXTS   = FINAL_CONTEXTS
-
-# Kafka-Konfiguration & Sonstiges
-KAFKA_BOOTSTRAP       = os.getenv("KAFKA_BOOTSTRAP", "rss-kafka-ingest:9092")
-TOPIC_USER_QUESTIONS = os.getenv("TOPIC_USER_QUESTIONS", "UserQuestions")
-TOPIC_ARTICLE_VIEWS  = os.getenv("TOPIC_ARTICLE_VIEWS", "ArticleViews")
-TOPIC_ANSWER_QUALITY = os.getenv("TOPIC_ANSWER_QUALITY", "AnswerQuality")
-
-# Timeout für externe Aufrufe (in Sekunden)
-TIMEOUT_SEC = int(os.getenv("TIMEOUT_SEC", 60))
-
-# Gewichtungen für recalc_importance()
-VIEWS_WEIGHT   = float(os.getenv("W_VIEWS",   0.4))
-REFS_WEIGHT    = float(os.getenv("W_REFS",    0.5))
-FLAG_WEIGHT    = float(os.getenv("W_FLAG",    0.1))
-CONTENT_WEIGHT = float(os.getenv("W_CONTENT", 0.1))  # neuer Content-Metric-Anteil
+# Kafka & Timeouts
+KAFKA_BOOTSTRAP        = os.getenv("KAFKA_BOOTSTRAP",        "kafka:9092")
+TIMEOUT_SEC            = int(os.getenv("TIMEOUT_SEC",              60))

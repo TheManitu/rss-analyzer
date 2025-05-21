@@ -1,3 +1,0 @@
-Import path set up correctly
-Error importing PassageRetriever: No module named 'retrieval.passage_retriever'
-DuckDBStorage imported successfully

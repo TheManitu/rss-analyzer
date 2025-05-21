@@ -1,7 +1,7 @@
 Flask>=2.0.0
 duckdb>=0.6.0
 feedparser
-requests
+requests>=2.28.0
 beautifulsoup4
 sumy
 langdetect
@@ -18,4 +18,11 @@ prometheus-client
 google-cloud-bigquery
 rake_nltk
 pytest
+keybert
+transformers>=4.0.0
+nltk
+accelerate>=0.20.3
+yake 
+spacy
+
 

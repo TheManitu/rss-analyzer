@@ -1,24 +1,53 @@
-from retrieval.passage_retriever import PassageRetriever
+# tests/test_passage_retriever.py
+
+import pytest
+from flask import Flask
 from storage.duckdb_storage import DuckDBStorage
+from retrieval.passage_retriever import PassageRetriever
+from config import SYN_WEIGHT, TOPIC_THRESHOLD_FACTOR, TOPIC_TITLE_WEIGHT
 
-def main():
-    print("🔍 Starte PassageRetriever-Test...")
+@pytest.fixture
+def app():
+    """Minimal-Flask-App für current_app.config."""
+    app = Flask(__name__)
+    app.config['SYN_WEIGHT'] = SYN_WEIGHT
+    app.config['TOPIC_THRESHOLD_FACTOR'] = TOPIC_THRESHOLD_FACTOR
+    app.config['TOPIC_TITLE_WEIGHT'] = TOPIC_TITLE_WEIGHT
+    return app
 
-    storage = DuckDBStorage()
-    retriever = PassageRetriever(storage)
+@pytest.fixture
+def temp_storage(tmp_path):
+    """Erzeuge eine temporäre DuckDB mit genau einem Kubernetes-Artikel."""
+    db_file = tmp_path / "test.duckdb"
+    storage = DuckDBStorage(db_path=str(db_file))
+    con = storage.connect()
+    con.execute("""
+        INSERT INTO articles
+          (title, link, description, content, summary, published, topic, importance)
+        VALUES
+          (
+            'Test Kubernetes',
+            'http://a',
+            'Kurzbeschreibung',
+            'Kubernetes ist ein Container-Orchestrator.',
+            'Kubernetes ist …',
+            CURRENT_DATE,
+            'Cloud Computing & Infrastruktur',
+            1.0
+          )
+    """)
+    con.close()
+    return storage
 
-    frage = "Was gibt es Neues zur Künstlichen Intelligenz?"
+def test_retrieve_kubernetes(app, temp_storage):
+    retriever = PassageRetriever(temp_storage)
+    # Wichtig: App-Context aktivieren, damit extract_topic... current_app.config nutzt
+    with app.app_context():
+        results = retriever.retrieve("Kubernetes Features")
+        assert results, "Erwartet mindestens eine Passage"
+        for p in results:
+            text = p['text'].lower()
+            title = (p.get('title') or '').lower()
+            assert 'kubernetes' in text or 'kubernetes' in title, \
+                f"Passage oder Titel muss 'Kubernetes' enthalten, war: {p}"
 
-    top_passagen = retriever.retrieve(frage)
-    if not top_passagen:
-        print("❌ Keine passenden Passagen gefunden.")
-        return
-
-    print(f"✅ {len(top_passagen)} relevante Passagen gefunden:\n")
-    for i, p in enumerate(top_passagen, 1):
-        print(f"[{i}] {p['title']} ({p['score']})")
-        print(p['text'][:300].strip() + "...")
-        print(f"→ {p['link']}\n")
-
-if __name__ == "__main__":
-    main()

@@ -35,29 +35,23 @@ header {
 .header-container {
     display: flex;
     align-items: center;
-    justify-content: center;     /* zentriert Logo + Text + Suche */
-    gap: 20px;                    /* Abstand zwischen Logo/Text und Suchleiste */
+    justify-content: center;  /* Logo und Suchleiste als Gruppe zentrieren */
+    gap: 20px;                 /* Abstand zwischen Logo und Suchformular */
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
 }
 .logo img {
     height: 40px;
-    margin-right: 10px;
-}
-.logo-text {
-    font-size: 1.8em;
-    font-weight: 600;
-    color: var(--text-color);
 }
 
-/* Suchformular */
-.search-form {
+/* Suchformular nur im Header */
+.header-container .search-form {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-.search-form input[type="text"] {
+.header-container .search-form input[type="text"] {
     width: 300px;
     padding: 8px;
     border: none;
@@ -66,7 +60,7 @@ header {
     background-color: var(--card-color);
     color: var(--text-color);
 }
-.search-form button {
+.header-container .search-form button {
     padding: 8px 16px;
     background-color: var(--accent-color);
     color: var(--surface-color);
@@ -76,15 +70,13 @@ header {
     cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
 }
-.search-form button:hover {
+.header-container .search-form button:hover {
     background-color: #e68a00;
 }
-.search-form button:active {
+.header-container .search-form button:active {
     transform: scale(0.98);
 }
-
-/* Spinner neben dem Button */
-.spinner {
+.header-container .spinner {
     display: none;
     width: 20px;
     height: 20px;
@@ -94,15 +86,33 @@ header {
     animation: spin 1s linear infinite;
     margin-left: 8px;
 }
+
 @keyframes spin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
 }
 
+/* Container für Antwort- und Quellen-Boxen unterhalb des Headers */
+.main-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;              /* minimaler Abstand zwischen den Boxen */
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 0 20px;
+}
+
+/* Antwort- und Quellen-Boxen erst anzeigen, sobald sie Inhalt haben */
+.answer-box:empty,
+.sources-box:empty {
+    display: none;
+}
+
 /* Collapsible Statistik-Box */
 .stats {
-    width: 300px;               /* feste Breite */
-    margin: 20px 20px 0 auto;   /* 20px oben, 20px rechts, auto links */
+    width: 300px;
+    margin: 20px 20px 0 auto;
 }
 .stats-summary {
     cursor: pointer;
@@ -186,7 +196,6 @@ header {
     font-size: 0.9em;
     margin-bottom: 15px;
 }
-
 /* Vorschau-Text: 2 Zeilen mit Ellipsis */
 .preview-content {
     display: -webkit-box;
@@ -199,10 +208,9 @@ header {
 .article[open] .preview-content {
     display: none;
 }
-
 /* Volltext beim Öffnen */
 .full-content {
-    margin: 0 20px 20px 20px;
+    margin: 0 20px 20px;
     white-space: pre-wrap;
     line-height: 1.6;
     display: none;
@@ -213,7 +221,7 @@ header {
 
 /* Responsive */
 @media (max-width: 800px) {
-    .search-form input[type="text"] {
+    .header-container .search-form input[type="text"] {
         width: 60%;
     }
 }
@@ -221,43 +229,43 @@ header {
 /* Antwort- und Quellen-Box */
 .answer-box,
 .sources-box {
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 20px;
-  background-color: var(--card-color);
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  color: var(--text-color);
-  font-size: 1em;
-  line-height: 1.5;
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: var(--card-color);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    font-size: 1em;
+    line-height: 1.5;
 }
 
-/* Überschriften */
+/* Überschriften in Antwort und Quellen */
 .answer-box h2 {
-  font-size: 1.6em;
-  margin-bottom: 10px;
-  color: var(--accent-color);
+    font-size: 1.6em;
+    margin-bottom: 10px;
+    color: var(--accent-color);
 }
 .sources-box h3 {
-  font-size: 1.3em;
-  margin-bottom: 8px;
-  color: var(--accent-color);
+    font-size: 1.3em;
+    margin-bottom: 8px;
+    color: var(--accent-color);
 }
 
 /* Antwort-Inhalt */
 .answer-box .answer-content {
-  white-space: pre-wrap;
+    white-space: pre-wrap;
 }
 
 /* Quellen-Liste */
 .sources-box ol {
-  margin-top: 10px;
-  padding-left: 1.2em;
+    margin-top: 10px;
+    padding-left: 1.2em;
 }
 .sources-box ol li {
-  margin-bottom: 6px;
+    margin-bottom: 6px;
 }
 .sources-box ol li a {
-  color: var(--text-color);
-  text-decoration: underline;
+    color: var(--text-color);
+    text-decoration: underline;
 }

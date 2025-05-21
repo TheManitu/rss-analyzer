@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="de">
 <head>
@@ -7,74 +8,78 @@
 </head>
 <body>
   <header>
-    <div class="header-container">
-      <div class="logo">
-        <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo">
-      </div>
-      <form id="search-form" class="search-form" method="post" action="/rag">
-        <input id="search-input" type="text" name="question" placeholder="Frage eingeben…">
-        <button type="submit">Suchen</button>
-        <div id="spinner" class="spinner"></div>
-      </form>
+  <div class="header-container">
+    <div class="logo">
+      <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo">
+    </div>
 
+    <form id="search-form" class="search-form" method="post" action="/rag">
+      <input id="search-input" type="text" name="question" placeholder="Stelle irgendeine Frage">
+      <button type="submit">Suchen</button>
+      <div id="spinner" class="spinner"></div>
+    </form>
+  </div>
+</header>
+
+  <main>
+    <div class="main-container">
       <div id="live-answer-box" class="answer-box"></div>
       <div id="sources-box"    class="sources-box"></div>
-
     </div>
-  </header>
 
-  <!-- Statistiken (300px breit, rechts oben) -->
-  <details class="stats">
-    <summary class="stats-summary">Statistiken anzeigen</summary>
-    <ul class="stats-list">
-      <li>Heute: {{ counts.today }}</li>
-      <li>Letzte 3 Tage: {{ counts['3_days'] - counts.today }}</li>
-      <li>Letzte 7 Tage: {{ counts['7_days'] - counts['3_days'] }}</li>
-      <li>Letzte 14 Tage: {{ counts['14_days'] - counts['7_days'] }}</li>
-    </ul>
-  </details>
+    <!-- Statistiken -->
+    <details class="stats">
+      <summary class="stats-summary">Statistiken anzeigen</summary>
+      <ul class="stats-list">
+        <li>Heute: {{ counts.today }}</li>
+        <li>Letzte 3 Tage: {{ counts['3_days'] - counts.today }}</li>
+        <li>Letzte 7 Tage: {{ counts['7_days'] - counts['3_days'] }}</li>
+        <li>Letzte 14 Tage: {{ counts['14_days'] - counts['7_days'] }}</li>
+      </ul>
+    </details>
 
-  <!-- Top-Artikel heute -->
-  <div class="top-articles">
-    <h2>Top-Artikel heute ({{ top_articles|length }})</h2>
-    {% for art in top_articles %}
-      <details class="article">
-        <summary>
-          <div class="title">
-            <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
-          </div>
-          <div class="meta">
-            {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
-          </div>
-          <div class="preview-content">
-            {{ art.summary|truncatewords(100) }}
-          </div>
-        </summary>
-        <div class="full-content">{{ art.content|trim }}</div>
-      </details>
-    {% endfor %}
-  </div>
+    <!-- Top-Artikel heute -->
+    <div class="top-articles">
+      <h2>Top-Artikel heute ({{ top_articles|length }})</h2>
+      {% for art in top_articles %}
+        <details class="article">
+          <summary>
+            <div class="title">
+              <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
+            </div>
+            <div class="meta">
+              {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
+            </div>
+            <div class="preview-content">
+              {{ art.summary|truncatewords(100) }}
+            </div>
+          </summary>
+          <div class="full-content">{{ art.content|trim }}</div>
+        </details>
+      {% endfor %}
+    </div>
 
-  <!-- Alle Artikel -->
-  <div class="all-articles">
-    <h2>Alle Artikel</h2>
-    {% for art in articles %}
-      <details class="article">
-        <summary>
-          <div class="title">
-            <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
-          </div>
-          <div class="meta">
-            {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
-          </div>
-          <div class="preview-content">
-            {{ art.summary|truncatewords(100) }}
-          </div>
-        </summary>
-        <div class="full-content">{{ art.content|trim }}</div>
-      </details>
-    {% endfor %}
-  </div>
+    <!-- Alle Artikel -->
+    <div class="all-articles">
+      <h2>Alle Artikel</h2>
+      {% for art in articles %}
+        <details class="article">
+          <summary>
+            <div class="title">
+              <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
+            </div>
+            <div class="meta">
+              {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
+            </div>
+            <div class="preview-content">
+              {{ art.summary|truncatewords(100) }}
+            </div>
+          </summary>
+          <div class="full-content">{{ art.content|trim }}</div>
+        </details>
+      {% endfor %}
+    </div>
+  </main>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

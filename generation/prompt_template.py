@@ -1,55 +1,70 @@
 # generation/prompt_template.py
 
 """
-Prompt-Templates für initiale, refine- und finalize-Schritte,
-optimiert für direkte, prägnante und selbstbewusste Antworten.
-Antworten sollen zwischen 100 und 300 Wörtern umfassen,
-sofern genügend Informationen vorliegen.
+Prompt-Templates:
+ - build_merge_prompt: kombiniere bis zu 500 Wörter aus allen Summaries
+ - build_answer_prompt: Artikel-Übersicht + Meta-Summary → Antwort
+ - (refine/finalize bleiben unverändert)
 """
 
-def build_initial_prompt(question: str, contexts: list) -> str:
-    contexts = contexts[:5]
-    source_section = "\n\n".join(
-        f"[{i+1}] {c['title']}\nSummary: {c.get('summary','')}"
-        for i, c in enumerate(contexts)
+def build_merge_prompt(contexts: list[dict], word_limit: int) -> str:
+    header = (
+        f"Fasse die folgenden Artikelsummaries **detailliert** zu einer einzigen "
+        f"Meta-Zusammenfassung (max. {word_limit} Wörter) zusammen. "
+        "Berücksichtige alle Kernaussagen vollständig.\n\n"
     )
+    sections = []
+    for idx, c in enumerate(contexts, start=1):
+        sections.append(
+            f"[{idx}] {c['title']}\n"
+            f"Link: {c['link']}\n"
+            f"Summary:\n{c['summary']}\n"
+        )
+    return header + "\n".join(sections)
+
+
+def build_answer_prompt(question: str,
+                        contexts: list[dict],
+                        merged_summary: str) -> str:
+    # Artikel-Übersicht (Titel + Link)
+    articles = "Relevante Artikel:\n" + "\n".join(
+        f"[{i+1}] {c['title']} – {c['link']}"
+        for i, c in enumerate(contexts)
+    ) + "\n\n"
+
+    header = f"Frage: {question}\n\n"
+    body = (
+        articles +
+        "Meta-Zusammenfassung:\n" +
+        merged_summary + "\n\n"
+    )
+    footer = (
+        "WICHTIG: Antworte ausschließlich auf Basis der obigen Meta-Zusammenfassung. "
+        "Erfinde keine neuen Fakten oder Quellen. Antworte ausführlich und fließend in Deutsch."
+    )
+    return header + body + footer
+
+
+# bestehende refine/finalize Prompts (falls benötigt)
+
+def build_refine_prompt(question: str, contexts: list[dict], previous_answer: str) -> str:
+    ctxs = contexts[:5]
+    sections = [
+        f"[{i+1}] {c['title']}\nSummary:\n{c['summary']}\n"
+        for i, c in enumerate(ctxs)
+    ]
     return (
         f"Frage: {question}\n\n"
-        "Du erhältst die folgenden Artikelsummaries (max. 5):\n"
-        f"{source_section}\n\n"
-        "Fasse zuerst kurz und prägnant den Inhalt dieser Summaries zusammen "
-        "und beantworte anschließend die Frage direkt auf Basis dieser Informationen. "
-        "Verwende ausschließlich diese Artikeldaten, erfinde keine Fakten oder Quellen. "
-        "Vermeide Einleitungen, Füllsätze und Wiederholungen. "
-        "Antworte in selbstbewusstem Ton und fließendem Deutsch. "
-        "Deine Antwort sollte mindestens 100 und höchstens 300 Wörter umfassen, "
-        "falls genügend Informationen vorhanden sind. "
-        "Sind nicht ausreichend Daten verfügbar, gib das kurz an und antworte prägnant."
+        "Verfeinere die folgende Antwort ausschließlich anhand der oben genannten Artikelsummaries:\n\n"
+        + "".join(sections)
+        + f"\nVorherige Antwort:\n{previous_answer}\n"
+        "\nAntworte direkt und prägnant in fließendem Deutsch, ohne neue Fakten."
     )
 
-def build_refine_prompt(question: str, contexts: list, previous_answer: str) -> str:
-    contexts = contexts[:5]
-    source_section = "\n\n".join(
-        f"[{i+1}] {c['title']}\nSummary: {c.get('summary','')}"
-        for i, c in enumerate(contexts)
-    )
+def build_finalize_prompt(question: str, contexts: list[dict], current_answer: str) -> str:
     return (
         f"Frage: {question}\n\n"
-        "Verfeinere die folgende Antwort ausschließlich anhand der oben genannten Artikelsummaries. "
-        "Erfinde keine neuen Fakten oder Quellen. Entferne redundante Informationen und Füllsätze. "
-        "Achte darauf, dass die finale Antwort zwischen 100 und 300 Wörtern liegt. "
-        "Antworte direkt und prägnant in selbstbewusstem Ton und fließendem Deutsch.\n\n"
-        f"{source_section}\n\n"
-        f"Vorherige Antwort:\n{previous_answer}"
-    )
-
-def build_finalize_prompt(question: str, contexts: list, current_answer: str) -> str:
-    return (
-        f"Frage: {question}\n\n"
-        "Hier ist dein letzter Antwortentwurf. Formuliere nun die finale Version DIREKT, PRÄGNANT und "
-        "SELBSTBEWUSST in fließendem Deutsch. Nutze ausschließlich die bereitgestellten Artikelsummaries, "
-        "erfinde keine neuen Fakten oder Quellen. Entferne Wiederholungen und Füllsätze. "
-        "Stelle sicher, dass die Antwort zwischen 100 und 300 Wörtern umfasst. "
-        "Füge keine Quellenliste am Ende hinzu.\n\n"
-        f"Antwort-Entwurf:\n{current_answer}"
+        f"Hier dein letzter Antwortentwurf:\n{current_answer}\n\n"
+        "Formuliere nun die finale, prägnante Version der Antwort ausschließlich "
+        "unter Verwendung der bereitgestellten Artikelsummaries."
     )

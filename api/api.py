@@ -2,125 +2,244 @@
 
 import os
 import logging
-from flask import Flask, render_template, send_from_directory, session
+from flask import Flask, render_template, jsonify, request, session
 from prometheus_client import Counter, Gauge, Histogram
 
+# Ingestion & Storage
 from ingestion.rss_ingest import RSSIngest
 from storage.duckdb_storage import DuckDBStorage
 from storage.topic_tracker import create_topic_table, update_topic, get_all_topics
-from retrieval.passage_retriever import PassageRetriever
-from retrieval.content_filter import ContentFilter
-from ranking.cross_encoder_ranker import CrossEncoderRanker
-from generation.llm_generator import LLMGenerator
-from evaluation.quality_evaluator import QualityEvaluator
 
-from api.rag import rag_bp
-from api.metrics import metrics_bp  # falls ihr Metrics-Blueprint nutzt
-from api.filters import first_words, truncatewords
+# Pipeline-Module
+from pipeline.article_cleaner                import ArticleCleaner
+from pipeline.keyword_extraction_langaware   import LanguageAwareKeywordExtractor
+from pipeline.topic_assignment               import TopicAssigner
+from pipeline.relevance_scoring              import RelevanceScorer
+from pipeline.segmentation                   import Segmenter
+from pipeline.summarization                  import Summarizer
+from pipeline.analyzer                       import DataAnalyzer
+from pipeline.dashboard_generator            import DashboardGenerator
 
-from config import (
-    RSS_FEEDS,
-    TOPIC_MAPPING,
-    LLM_MODEL_INITIAL,
-    LLM_MODEL_REFINE,
-    FINAL_CONTEXTS
-)
+# RAG-Komponenten
+from retrieval.passage_retriever    import PassageRetriever
+from retrieval.content_filter       import ContentFilter
+from ranking.cross_encoder_ranker   import CrossEncoderRanker
+from generation.llm_generator       import LLMGenerator
+from evaluation.quality_evaluator   import QualityEvaluator
+
+from api.utils      import extract_topic_from_question, store_question_event
+from api.filters    import first_words, truncatewords
+from api.rag        import rag_bp
+
+from config import RSS_FEEDS, FINAL_CONTEXTS
 
 def create_app():
-    # Basis-Pfade
-    base_dir      = os.path.abspath(os.path.dirname(__file__))
-    templates_dir = os.path.join(base_dir, '..', 'templates')
-    static_dir    = os.path.join(base_dir, '..', 'static')
-
-    app = Flask(
-        __name__,
-        template_folder=templates_dir,
-        static_folder=static_dir
-    )
+    logging.basicConfig(level=logging.INFO)
+    app = Flask(__name__, template_folder="./templates", static_folder="./static")
     app.secret_key = os.getenv("FLASK_SECRET", "change_me")
 
-    # Expose key config vars to Flask config
-    app.config["LLM_MODEL_INITIAL"] = LLM_MODEL_INITIAL   # Default "llama2:7b" :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
-    app.config["LLM_MODEL_REFINE"]  = LLM_MODEL_REFINE
-    app.config["FINAL_CONTEXTS"]     = FINAL_CONTEXTS
+    # Prometheus-Metriken
+    app.Q_COUNT    = Counter("rss_questions_total",     "Anzahl Fragen gesamt")
+    app.ZERO_CAND  = Gauge("rss_zero_candidate_ratio",  "Verhältnis Null-Treffer")
+    app.DB_LATENCY = Histogram("duckdb_query_seconds",   "DB-Latenz in Sekunden")
 
-    # Topic-Tabelle sicherstellen
+    # Tabellen anlegen
     create_topic_table()
+    storage = DuckDBStorage(db_path=os.getenv("DB_PATH"))
+    app.storage = storage
 
-    # Storage & Ingestor
-    app.storage  = DuckDBStorage()
-    app.ingestor = RSSIngest(feeds=RSS_FEEDS, storage_client=app.storage)
+    # Startup-Skip-Flags
+    skip_ingest    = os.getenv("SKIP_INGEST_ON_STARTUP",       "false").lower() in ("1","true","yes")
+    skip_kw        = os.getenv("SKIP_KEYWORDS_ON_STARTUP",     "false").lower() in ("1","true","yes")
+    skip_topics    = os.getenv("SKIP_TOPICS_ON_STARTUP",       "false").lower() in ("1","true","yes")
+    skip_relevance = os.getenv("SKIP_RELEVANCE_ON_STARTUP",    "false").lower() in ("1","true","yes")
+    skip_segment   = os.getenv("SKIP_SEGMENTATION_ON_STARTUP", "false").lower() in ("1","true","yes")
+    skip_summary   = os.getenv("SKIP_SUMMARIZATION_ON_STARTUP","false").lower() in ("1","true","yes")
+    skip_analyzer  = os.getenv("SKIP_ANALYZER_ON_STARTUP",     "false").lower() in ("1","true","yes")
+    skip_dashboard = os.getenv("SKIP_DASHBOARD_ON_STARTUP",    "false").lower() in ("1","true","yes")
 
-    # RAG-Pipeline-Komponenten
-    app.retriever = PassageRetriever(app.storage)
-    app.filterer  = ContentFilter(topic_mapping=TOPIC_MAPPING)
+    # 1) RSS-Ingestion
+    if skip_ingest:
+        logging.info("SKIP_INGEST_ON_STARTUP=true → RSS-Ingestion übersprungen")
+    else:
+        logging.info("Starte RSS-Ingestion …")
+        try:
+            RSSIngest(feeds=RSS_FEEDS, storage_client=storage).run()
+        except Exception:
+            logging.exception("Fehler bei RSS-Ingestion – überspringe und fahre fort")
+
+    # 2) Keyword-Extraction
+    if skip_kw:
+        logging.info("SKIP_KEYWORDS_ON_STARTUP=true → Keyword-Extraction übersprungen")
+    else:
+        logging.info("Starte Keyword-Extraction …")
+        try:
+            LanguageAwareKeywordExtractor().run()
+        except Exception:
+            logging.exception("Fehler bei Keyword-Extraction – überspringe und fahre fort")
+
+    # 3) Topic-Assignment
+    if skip_topics:
+        logging.info("SKIP_TOPICS_ON_STARTUP=true → Topic-Assignment übersprungen")
+    else:
+        logging.info("Starte Topic-Assignment …")
+        try:
+            TopicAssigner().run()
+        except Exception:
+            logging.exception("Fehler bei Topic-Assignment – überspringe und fahre fort")
+
+    # 4) Relevance-Scoring
+    if skip_relevance:
+        logging.info("SKIP_RELEVANCE_ON_STARTUP=true → Relevance-Scoring übersprungen")
+    else:
+        logging.info("Starte Relevance-Scoring …")
+        try:
+            RelevanceScorer().run()
+        except Exception:
+            logging.exception("Fehler bei Relevance-Scoring – überspringe und fahre fort")
+
+    # 5) Segmentation
+    if skip_segment:
+        logging.info("SKIP_SEGMENTATION_ON_STARTUP=true → Segmentation übersprungen")
+    else:
+        logging.info("Starte Segmentation …")
+        try:
+            Segmenter().run()
+        except Exception:
+            logging.exception("Fehler bei Segmentation – überspringe und fahre fort")
+
+    # 6) Summarization
+    if skip_summary:
+        logging.info("SKIP_SUMMARIZATION_ON_STARTUP=true → Summarization übersprungen")
+    else:
+        logging.info("Starte Summarization …")
+        try:
+            Summarizer().run()
+        except Exception:
+            logging.exception("Fehler bei Summarization – überspringe und fahre fort")
+
+    # 7) Data-Analysis
+    if skip_analyzer:
+        logging.info("SKIP_ANALYZER_ON_STARTUP=true → Data-Analyzer übersprungen")
+    else:
+        logging.info("Starte Data-Analyzer …")
+        try:
+            DataAnalyzer().run()
+        except Exception:
+            logging.exception("Fehler bei Data-Analyzer – überspringe und fahre fort")
+
+    # 8) Dashboard
+    if skip_dashboard:
+        logging.info("SKIP_DASHBOARD_ON_STARTUP=true → Dashboard-Erstellung übersprungen")
+    else:
+        logging.info("Erzeuge Dashboard …")
+        try:
+            DashboardGenerator().run()
+        except Exception:
+            logging.exception("Fehler bei Dashboard-Erstellung – überspringe und fahre fort")
+
+    # RAG-Komponenten initialisieren
+    app.retriever = PassageRetriever(storage)
+    app.filterer  = ContentFilter()
     app.ranker    = CrossEncoderRanker()
     app.generator = LLMGenerator()
     app.evaluator = QualityEvaluator(threshold=0.5)
 
-    # Prometheus-Metriken
-    app.Q_COUNT    = Counter("rss_questions_total", "Total number of questions processed")
-    app.ZERO_CAND  = Gauge("rss_zero_candidate_ratio", "Ratio of zero-candidate questions")
-    app.DB_LATENCY = Histogram("duckdb_query_seconds", "DuckDB query latency in seconds")
-
-    # Jinja-Filter
+    # Jinja-Filter registrieren
     app.add_template_filter(first_words,   "first_words")
     app.add_template_filter(truncatewords, "truncatewords")
 
-    # Blueprints
-    app.register_blueprint(rag_bp)
-    app.register_blueprint(metrics_bp)
+    # Blueprint für /rag
+    app.register_blueprint(rag_bp, url_prefix="/rag")
 
-    # Favicon
-    @app.route('/favicon.ico')
-    def favicon():
-        return send_from_directory(app.static_folder, 'favicon.ico')
+    @app.route("/")
+    def index():
+        topics       = get_all_topics()
+        top_articles = storage.get_all_articles(time_filter="today") or storage.get_all_articles(time_filter="7_days")
+        counts = {
+            "today":   len(storage.get_all_articles(time_filter="today")),
+            "3_days":  len(storage.get_all_articles(time_filter="3_days")),
+            "7_days":  len(storage.get_all_articles(time_filter="7_days")),
+            "14_days": len(storage.get_all_articles(time_filter="14_days")),
+        }
+        return render_template("index.html",
+                               topics=topics,
+                               top_articles=top_articles,
+                               counts=counts)
 
-    # Zusatz-Routen
-    @app.route('/audit')
-    def audit():
-        audit = app.storage.execute("SELECT link, topic, timestamp FROM question_events")
-        return render_template('audit.html', audit=audit)
+    @app.route("/api/refresh", methods=["POST"])
+    def refresh():
+        try:    ArticleCleaner(db_path=os.getenv("DB_PATH")).run()
+        except: logging.exception("Cleanup failed")
+        try:    RSSIngest(feeds=RSS_FEEDS, storage_client=storage).run()
+        except: logging.exception("Ingest failed")
+        try:    LanguageAwareKeywordExtractor().run()
+        except: logging.exception("Keywords failed")
+        try:    TopicAssigner().run()
+        except: logging.exception("Topics failed")
+        try:    RelevanceScorer().run()
+        except: logging.exception("Relevance failed")
+        try:    Segmenter().run()
+        except: logging.exception("Segmentation failed")
+        try:    Summarizer().run()
+        except: logging.exception("Summarization failed")
+        try:    DataAnalyzer().run()
+        except: logging.exception("Analyzer failed")
+        try:    DashboardGenerator().run()
+        except: logging.exception("Dashboard failed")
+        return jsonify(status="ok")
 
-    @app.route('/analytics')
-    def analytics():
-        # Beispiel: Top-5 Fragen aus question_events
-        con = app.storage.connect(read_only=True)
-        top_q = con.execute("""
-            SELECT question, COUNT(*) AS cnt
-            FROM question_events
-            GROUP BY question
-            ORDER BY cnt DESC
-            LIMIT 5
-        """).fetchall()
-        hourly = con.execute("""
-            SELECT EXTRACT(hour FROM timestamp) AS hr, COUNT(*) AS cnt
-            FROM question_events
-            GROUP BY hr
-            ORDER BY hr
-        """).fetchall()
-        top_views = con.execute("""
-            SELECT link, view_count
-            FROM article_metrics
-            ORDER BY view_count DESC
-            LIMIT 5
-        """).fetchall()
-        con.close()
-        return render_template(
-            'analytics.html',
-            questions_total=app.Q_COUNT._value.get(),  # aktueller Zählerstand
-            top_questions=top_q,
-            questions_by_hour=hourly,
-            top_article_views=top_views
-        )
+    @app.route("/search", methods=["POST"])
+    def search():
+        data = request.get_json() or {}
+        q    = data.get("question", "").strip()
+        if not q:
+            # so stellen wir sicher, dass kein positional argument error mehr auftritt
+            response = jsonify(answer="Bitte eine Frage eingeben.", sources=[])
+            response.status_code = 400
+            return response
 
-    @app.route('/dashboard')
-    def dashboard():
-        topics = get_all_topics()
-        return render_template('dashboard.html', topics=topics)
+        # Retrieval
+        passages = app.retriever.retrieve(q) or []
+
+        # Logging & Topic-Tracking
+        topic = extract_topic_from_question(q)
+        store_question_event(q, topic, len(passages))
+        update_topic(topic, delta=1)
+
+        # Filter → Rank → Generate → Evaluate
+        filtered = app.filterer.apply(passages, q)
+        ranked   = app.ranker.rank(q, filtered)
+        top_ctx  = ranked[:FINAL_CONTEXTS]
+        answer   = app.generator.generate(q, contexts=top_ctx)
+        eval_res = app.evaluator.evaluate(answer, top_ctx)
+
+        # Kafka-Logging
+        from logging_service.kafka_config_and_logger import log_user_question, log_answer_quality
+        log_user_question(q, topic, len(passages),
+                          [p["link"] for p in top_ctx],
+                          session['user_id'], session['session_id'])
+        log_answer_quality(used_article_ids=[p["link"] for p in top_ctx],
+                           quality_score=eval_res["score"],
+                           flag=eval_res["flag"],
+                           user_id=session['user_id'], session_id=session['session_id'])
+
+        # Quellen im JSON-Response
+        sources = [{
+            "title":       p.get("title"),
+            "link":        p.get("link"),
+            "section_idx": p.get("section_idx"),
+            "snippet":     (p.get("section_text","")[:200] + "…") if p.get("section_text") else "",
+            "score":       p.get("score", 0)
+        } for p in top_ctx]
+
+        return jsonify(answer=answer, sources=sources)
 
     return app
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    create_app().run(host="0.0.0.0", port=5000, debug=True)
+    create_app().run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        debug=os.getenv("DEBUG", "false").lower() in ("1","true","yes")
+    )

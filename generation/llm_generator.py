@@ -2,15 +2,15 @@
 
 import os
 import logging
-import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from ollama import chat
-from config import LLM_MODEL_INITIAL, LLM_MODEL_REFINE
-from generation.prompt_template import (
-    build_initial_prompt,
-    build_refine_prompt,
-    build_finalize_prompt
+from config import (
+    LLM_MODEL_INITIAL,
+    LLM_MODEL_REFINE,
+    TIMEOUT_SEC,
+    MERGE_SUMMARY_WORD_LIMIT
 )
+from generation.prompt_template import build_merge_prompt, build_answer_prompt
 
 # Logging vorbereiten
 LOG_DIR = os.getenv("LLM_CHAT_LOG_DIR", "/app/logs")
@@ -22,14 +22,23 @@ chat_logger.setLevel(logging.INFO)
 chat_logger.addHandler(fh)
 
 SYSTEM_PROMPT = (
-    "Du bist ein fachkundiger Assistent. Antworte ausschließlich auf Basis der bereitgestellten Artikelsummaries. "
-    "Erfinde keine zusätzlichen Quellen oder Fakten. "
-    "Antworte direkt und selbstbewusst. Wenn die bereitgestellten Informationen nicht ausreichen, "
-    "gib kurz an, dass keine Informationen vorliegen, statt Vermutungen anzustellen."
+    "Du bist ein fachkundiger Assistent. Antworte ausschließlich auf Basis "
+    "der bereitgestellten Artikelsummaries. Erfinde keine zusätzlichen Quellen "
+    "oder Fakten. Antworte direkt und selbstbewusst. Wenn Informationen fehlen, "
+    "gib kurz an, dass keine ausreichenden Daten vorliegen."
 )
 
+
 class LLMGenerator:
-    def __init__(self, initial_model=LLM_MODEL_INITIAL, refine_model=LLM_MODEL_REFINE, timeout_sec=30):
+    """
+    1) Merge aller Kontext-Summaries zu einer Meta-Summary (bis MERGE_SUMMARY_WORD_LIMIT Wörter)
+    2) Antwort nur auf Basis dieser Meta-Summary erstellen
+    """
+
+    def __init__(self,
+                 initial_model: str = LLM_MODEL_INITIAL,
+                 refine_model:  str = LLM_MODEL_REFINE,
+                 timeout_sec:   int = TIMEOUT_SEC):
         self.initial_model = initial_model
         self.refine_model  = refine_model
         self.timeout       = timeout_sec
@@ -40,44 +49,53 @@ class LLMGenerator:
             try:
                 return future.result(timeout=self.timeout)
             except TimeoutError:
-                chat_logger.error(f"LLM call timed out after {self.timeout}s")
-                raise
+                chat_logger.error(f"LLM-Aufruf nach {self.timeout}s abgebrochen")
             except Exception as e:
-                chat_logger.exception("Fehler bei Initialantwort")
-                return "Entschuldigung, die Antwort konnte aktuell nicht generiert werden."
+                chat_logger.error(f"LLM-Verbindung oder Fehler: {e}")
+        return None
 
-    def generate(self, question: str, contexts: list) -> str:
-        # Schritt 1: Initial
-        p1 = build_initial_prompt(question, contexts)
-        msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p1}]
-        chat_logger.info(f"→ INIT PROMPT:\n{p1}")
-        try:
-            r1 = self._call_with_timeout(self.initial_model, msgs)
-            a1 = r1.message.content.strip()
-            chat_logger.info(f"← INIT RESP:\n{a1}")
-        except Exception:
-            return "Entschuldigung, die Antwort konnte derzeit nicht generiert werden."
+    def _merge_summaries(self, contexts: list[dict]) -> str:
+        prompt = build_merge_prompt(contexts, MERGE_SUMMARY_WORD_LIMIT)
+        chat_logger.info(f"→ MERGE PROMPT:\n{prompt}")
+        resp = self._call_with_timeout(self.refine_model, [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": prompt}
+        ])
+        if resp and hasattr(resp, "message"):
+            merged = resp.message.content.strip()
+            chat_logger.info(f"[DEBUG] Merged ({len(merged.split())} Wörter)")
+            return merged
 
-        # Schritt 2: Refine
-        p2 = build_refine_prompt(question, contexts, a1)
-        msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p2}]
-        chat_logger.info(f"→ REFINE PROMPT:\n{p2}")
-        try:
-            r2 = self._call_with_timeout(self.refine_model, msgs)
-            a2 = r2.message.content.strip()
-            chat_logger.info(f"← REFINE RESP:\n{a2}")
-        except Exception:
-            return a1  # fallback
+        # Fallback: rohe Verkettung, gekürzt
+        all_text = " ".join(ctx["summary"] for ctx in contexts)
+        words    = all_text.split()
+        if len(words) > MERGE_SUMMARY_WORD_LIMIT:
+            fallback = " ".join(words[:MERGE_SUMMARY_WORD_LIMIT]) + "…"
+        else:
+            fallback = all_text
+        chat_logger.warning(f"Merge-Fallback ({len(fallback.split())} Wörter)")
+        return fallback
 
-        # Schritt 3: Finalisieren
-        p3 = build_finalize_prompt(question, contexts, a2)
-        msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": p3}]
-        chat_logger.info(f"→ FINAL PROMPT:\n{p3}")
-        try:
-            r3 = self._call_with_timeout(self.refine_model, msgs)
-            final = r3.message.content.strip()
-            chat_logger.info(f"← FINAL RESP:\n{final}")
-        except Exception:
-            return a2  # fallback
+    def generate(self, question: str, contexts: list[dict]) -> str:
+        # 1) Meta-Summary
+        merged_summary = self._merge_summaries(contexts)
 
-        return final
+        # 2) Antwort-Prompt
+        prompt = build_answer_prompt(question, contexts, merged_summary)
+        chat_logger.info(f"→ ANSWER PROMPT:\n{prompt}")
+        resp = self._call_with_timeout(self.initial_model, [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": prompt}
+        ])
+        if resp and hasattr(resp, "message"):
+            answer = resp.message.content.strip()
+            chat_logger.info(f"← ANSWER RESP:\n{answer}")
+            return answer
+
+        # Fallback: Meta-Summary als Antwort
+        chat_logger.warning("Antwort-Fallback: Meta-Summary")
+        return merged_summary
+
+
+# Alias
+generate = LLMGenerator
