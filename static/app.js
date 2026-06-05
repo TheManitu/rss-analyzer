@@ -105,10 +105,25 @@ function renderMarkdownAnswer(value) {
 function sourceLabel(source) {
   if (source.source_type === 'official') return 'Offiziell';
   if (source.is_speculative || source.source_type === 'speculative' || source.source_type === 'community') {
-    return 'Unbestaetigt';
+    return 'Unbestätigt';
   }
   if (source.source_type === 'third_party') return 'Drittquelle';
   return 'Quelle';
+}
+
+function sourceDiscussion(source) {
+  if (source.discussion) return source.discussion;
+  const domain = source.domain ? ` (${source.domain})` : '';
+  if (source.source_type === 'official') {
+    return `Offizielle Quelle${domain}; am stärksten für bestätigte Produkt- und Release-Fakten gewichtet.`;
+  }
+  if (source.is_speculative || source.source_type === 'speculative' || source.source_type === 'community') {
+    return `Unbestätigte Quelle${domain}; hilfreich für frühe Hinweise, aber nicht als bestätigter Fakt.`;
+  }
+  if (source.source_type === 'third_party') {
+    return `Drittquelle${domain}; nützlich zur Einordnung und für den Abgleich mit offiziellen Angaben.`;
+  }
+  return `Quelle${domain}; wurde nach Relevanz zur Frage einsortiert.`;
 }
 
 function currentTheme() {
@@ -230,9 +245,11 @@ async function handleSearch(event) {
         const score = typeof source.credibility_score === 'number'
           ? ` - Vertrauen ${Math.round(source.credibility_score * 100)}%`
           : '';
+        const discussion = sourceDiscussion(source);
         html += `<li>
           <a href="${escapeHTML(link)}" target="_blank" rel="noopener">${escapeHTML(source.title)}</a>
           <div class="source-meta">${escapeHTML(sourceLabel(source))}${escapeHTML(score)}</div>
+          ${discussion ? `<div class="source-discussion">${escapeHTML(discussion)}</div>` : ''}
           ${source.snippet ? `<div class="source-snippet">${escapeHTML(source.snippet)}</div>` : ''}
         </li>`;
       });
@@ -250,6 +267,7 @@ async function handleSearch(event) {
 
 window.renderMarkdownAnswer = renderMarkdownAnswer;
 window.sourceLabel = sourceLabel;
+window.sourceDiscussion = sourceDiscussion;
 window.handleSearch = handleSearch;
 window.handleRefresh = handleRefresh;
 window.handleThemeToggle = handleThemeToggle;

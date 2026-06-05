@@ -45,14 +45,14 @@ def build_answer_prompt(question: str,
         "Quellenmarkern wie [1] oder [2]. Wenn die Quellen die Frage nicht beantworten, "
         "sage klar, dass keine ausreichenden Daten in den Artikeln vorliegen. Gehe direkt "
         "auf die konkrete Nutzerfrage ein: beantworte erst die eigentliche Frage, danach "
-        "ordne Details und Einschraenkungen ein. Schreibe in fluessigem Deutsch mit "
-        "vollstaendigen Saetzen und kurzen Absaetzen; nutze Stichpunkte nur, wenn eine "
-        "echte Aufzaehlung besser lesbar ist. Schneide relevante Einordnungen nicht ab. "
+        "ordne Details und Einschränkungen ein. Schreibe in flüssigem Deutsch mit "
+        "vollständigen Sätzen und kurzen Absätzen; nutze Stichpunkte nur, wenn eine "
+        "echte Aufzählung besser lesbar ist. Schneide relevante Einordnungen nicht ab. "
         "Strukturiere die Antwort mit den Abschnitten Kurzfazit, Gesicherter Stand, "
-        "Feature-Einschaetzung, Release-Stand, Diskutierte unbestaetigte Hinweise "
-        "und Quellenlage, wenn die Frage nach einem unveroeffentlichten oder "
-        "versionierten Modell fragt. Behandle Geruechte, Leaks und Community-Posts nie "
-        "als bestaetigte Produktinformationen, sondern erklaere ihre Aussagekraft im Text."
+        "Feature-Einschätzung, Release-Stand, Diskutierte unbestätigte Hinweise "
+        "und Quellenlage, wenn die Frage nach einem unveröffentlichten oder "
+        "versionierten Modell fragt. Behandle Gerüchte, Leaks und Community-Posts nie "
+        "als bestätigte Produktinformationen, sondern erkläre ihre Aussagekraft im Text."
     )
     return header + body + footer
 

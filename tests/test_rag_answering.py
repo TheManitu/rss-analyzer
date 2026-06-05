@@ -31,7 +31,7 @@ class FakeRetriever:
 class FakeStorage:
     rows = {
         "https://news.example/openai-api": (
-            "OpenAI API Update",
+            "OpenAI\u00e2\u20ac\u2122s API Update",
             "OpenAI aktualisiert seine API mit neuen Werkzeugen fuer Entwickler, besserer Kontrolle und zusaetzlichen Sicherheitsfunktionen. Teams koennen Integrationen dadurch stabiler bauen.",
             "",
             "",
@@ -85,13 +85,18 @@ def test_answer_question_returns_quality_sources_only():
     with app.app_context():
         answer, sources, contexts, passages, topic, eval_res = answer_question("Was ist neu bei OpenAI?")
 
-    assert "OpenAI API Update" in answer
+    assert "OpenAI's API Update" in answer
     assert "[1]" in answer
     assert topic == "OpenAI & GPT-Modelle"
     assert len(sources) == 1
+    assert sources[0]["title"] == "OpenAI's API Update"
     assert sources[0]["link"] == "https://news.example/openai-api"
     assert sources[0]["source_type"] == "third_party"
+    assert sources[0]["domain"] == "news.example"
+    assert "Drittquelle" in sources[0]["discussion"]
+    assert "GPT-/OpenAI-Fragen" in sources[0]["discussion"]
     assert sources[0]["credibility_score"] > 0
+    assert "\u00e2" not in sources[0]["title"]
     assert all("newsletter" not in source["snippet"].lower() for source in sources)
     assert len(contexts) == 1
     assert len(passages) == 3

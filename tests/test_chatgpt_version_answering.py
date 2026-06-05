@@ -37,20 +37,20 @@ def test_chatgpt_56_answer_marks_release_and_features_unconfirmed():
 
     assert "## Kurzfazit" in answer
     assert "## Gesicherter Stand" in answer
-    assert "## Feature-Einschaetzung" in answer
+    assert "## Feature-Einschätzung" in answer
     assert "## Release-Stand" in answer
-    assert "## Diskutierte, unbestaetigte Hinweise" in answer
-    assert "keine bestaetigte ChatGPT-/GPT-5.6-Ankuendigung" in answer
+    assert "## Diskutierte, unbestätigte Hinweise" in answer
+    assert "keine bestätigte ChatGPT-/GPT-5.6-Ankündigung" in answer
     assert "Kein offizielles Release-Datum" in answer
-    assert "keine bestaetigte Feature-Liste" in answer
+    assert "keine bestätigte Feature-Liste" in answer
     assert "Codex-/Backend-Leak" in answer
     assert "13. Mai 2026" in answer
     assert "80-89%" in answer
     assert "30. Juni 2026" in answer
     assert "Agentic Workflows" in answer
     assert "Token-Effizienz" in answer
-    assert "Unbestaetigt" in answer
-    assert "Die wichtigsten unbestaetigten Signale" in answer
+    assert "Unbestätigt" in answer
+    assert "Die wichtigsten unbestätigten Signale" in answer
     assert "\n-" not in answer
     assert "GPT-5.5 in ChatGPT" in answer
     assert "GPT-5.5 Instant in ChatGPT is the default for all logged-in users." not in answer

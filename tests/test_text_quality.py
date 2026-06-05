@@ -1,4 +1,4 @@
-from pipeline.text_quality import clean_article_text, is_useful_article_text, is_valid_source_link
+from pipeline.text_quality import clean_article_text, clean_display_text, is_useful_article_text, is_valid_source_link
 
 
 def test_clean_article_text_removes_boilerplate():
@@ -18,6 +18,29 @@ def test_clean_article_text_removes_boilerplate():
     assert "newsletter" not in cleaned.lower()
     assert "Kubernetes erweitert" in cleaned
     assert "Deployment-Prozesse" in cleaned
+
+
+def test_clean_article_text_repairs_common_feed_mojibake():
+    raw = "OpenAI\u00e2\u20ac\u2122s GPT-5.6 \u00e2\u20ac\u201d Qualit\u00c3\u00a4t, Gr\u00c3\u00b6\u00c3\u009fe und neue Hinweise\u00e2\u20ac\u00a6"
+
+    cleaned = clean_article_text(raw)
+
+    assert "OpenAI's GPT-5.6" in cleaned
+    assert "Qualität" in cleaned
+    assert "Größe" in cleaned
+    assert "Hinweise..." in cleaned
+    assert "\u00e2" not in cleaned
+    assert "\u00c3" not in cleaned
+    assert "\u00c2" not in cleaned
+    assert "\ufffd" not in cleaned
+
+
+def test_clean_display_text_repairs_existing_stored_titles_without_boilerplate_drop():
+    title = "GPT-5.6 in OpenAI\u00e2\u0080\u0099s Codex Logs \u00e2\u0080\u0094 was dahinter steckt"
+
+    cleaned = clean_display_text(title)
+
+    assert cleaned == "GPT-5.6 in OpenAI's Codex Logs - was dahinter steckt"
 
 
 def test_is_useful_article_text_rejects_ad_only_content():

@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from html import unescape
 from urllib.parse import urlparse
 
@@ -11,6 +12,60 @@ except Exception:  # pragma: no cover - optional runtime dependency guard
 WORD_RE = re.compile(r"\b[\w\-']+\b", re.UNICODE)
 TAG_RE = re.compile(r"<[^>]+>")
 WHITESPACE_RE = re.compile(r"\s+")
+CONTROL_RE = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]")
+MOJIBAKE_RE = re.compile(r"[\u00c2\u00c3\u00e2\ufffd]")
+
+MOJIBAKE_REPLACEMENTS = {
+    "\u00e2\u20ac\u2122": "'",
+    "\u00e2\u0080\u0099": "'",
+    "\u00e2\u20ac\u02dc": "'",
+    "\u00e2\u0080\u0098": "'",
+    "\u00e2\u20ac\u0153": '"',
+    "\u00e2\u0080\u009c": '"',
+    "\u00e2\u20ac\u009d": '"',
+    "\u00e2\u0080\u009d": '"',
+    "\u00e2\u20ac\u201c": " - ",
+    "\u00e2\u0080\u0093": " - ",
+    "\u00e2\u20ac\u201d": " - ",
+    "\u00e2\u0080\u0094": " - ",
+    "\u00e2\u20ac\u00a6": "...",
+    "\u00e2\u0080\u00a6": "...",
+    "\u00e2\u20ac\u00a2": "-",
+    "\u00e2\u0080\u00a2": "-",
+    "\u00e2\u201e\u00a2": "TM",
+    "\u00e2\u0084\u00a2": "TM",
+    "\u00c2\u00a0": " ",
+    "\u00c2\u00ad": "",
+    "\u00c2\u00a9": "©",
+    "\u00c2\u00ae": "®",
+    "\u00c3\u0084": "Ä",
+    "\u00c3\u0096": "Ö",
+    "\u00c3\u009c": "Ü",
+    "\u00c3\u00a4": "ä",
+    "\u00c3\u00b6": "ö",
+    "\u00c3\u00bc": "ü",
+    "\u00c3\u009f": "ß",
+    "\u00c3\u00a9": "é",
+    "\u00c3\u00a8": "è",
+    "\u00c3\u00a1": "á",
+    "\u00c3\u00a0": "à",
+    "\u00c3\u00b3": "ó",
+    "\u00c3\u00b2": "ò",
+    "\u00c3\u00ba": "ú",
+    "\u00c3\u00b1": "ñ",
+    "\u00c3\u00a7": "ç",
+}
+
+TYPOGRAPHIC_REPLACEMENTS = {
+    "’": "'",
+    "‘": "'",
+    "“": '"',
+    "”": '"',
+    "–": " - ",
+    "—": " - ",
+    "…": "...",
+    "•": "-",
+}
 
 BOILERPLATE_PATTERNS = [
     r"\badvertisement\b",
@@ -53,9 +108,43 @@ BOILERPLATE_PATTERNS = [
 BOILERPLATE_RE = re.compile("|".join(BOILERPLATE_PATTERNS), re.IGNORECASE)
 
 
+def _mojibake_score(text: str) -> int:
+    return len(MOJIBAKE_RE.findall(text or "")) + len(CONTROL_RE.findall(text or "")) + (text or "").count("\ufffd") * 3
+
+
+def repair_text_encoding(text: str) -> str:
+    """Repair common UTF-8 mojibake from feeds while preserving normal Unicode text."""
+    value = text or ""
+    if not value:
+        return ""
+
+    if _mojibake_score(value):
+        best = value
+        best_score = _mojibake_score(value)
+        for encoding in ("latin-1", "cp1252"):
+            try:
+                candidate = value.encode(encoding).decode("utf-8")
+            except UnicodeError:
+                continue
+            candidate_score = _mojibake_score(candidate)
+            if candidate_score < best_score and len(candidate) >= max(1, int(len(value) * 0.7)):
+                best = candidate
+                best_score = candidate_score
+        value = best
+
+    for broken, fixed in MOJIBAKE_REPLACEMENTS.items():
+        value = value.replace(broken, fixed)
+    for typographic, plain in TYPOGRAPHIC_REPLACEMENTS.items():
+        value = value.replace(typographic, plain)
+
+    value = CONTROL_RE.sub("", value)
+    value = value.replace("\ufffd", "")
+    return unicodedata.normalize("NFKC", value)
+
+
 def strip_html(text: str) -> str:
     """Return readable text from HTML or plain text."""
-    value = unescape(text or "")
+    value = repair_text_encoding(unescape(text or ""))
     if BeautifulSoup is not None and ("<" in value and ">" in value):
         soup = BeautifulSoup(value, "html.parser")
         for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form", "button", "noscript", "svg", "iframe"]):
@@ -63,11 +152,16 @@ def strip_html(text: str) -> str:
         value = soup.get_text(separator="\n")
     else:
         value = TAG_RE.sub(" ", value)
-    return re.sub(r"[ \t\f\v]+", " ", unescape(value)).strip()
+    return re.sub(r"[ \t\f\v]+", " ", repair_text_encoding(unescape(value))).strip()
 
 
 def normalize_whitespace(text: str) -> str:
-    return WHITESPACE_RE.sub(" ", unescape(text or "")).strip()
+    return WHITESPACE_RE.sub(" ", repair_text_encoding(unescape(text or ""))).strip()
+
+
+def clean_display_text(text: str) -> str:
+    """Clean short display fields without applying article boilerplate removal."""
+    return normalize_whitespace(strip_html(text))
 
 
 def words(text: str) -> list[str]:

@@ -6,6 +6,7 @@ import logging
 from datetime import date, timedelta
 from config import DB_PATH
 from pipeline.ingestion_filter import IngestionFilter
+from pipeline.text_quality import clean_article_text, clean_display_text
 from api.utils import count_rejected_article
 
 # Logger für Storage-Validierung
@@ -137,7 +138,14 @@ class DuckDBStorage:
         con.close()
         cols = ["title", "link", "description", "content", "summary",
                 "translation", "published", "topic", "importance", "relevance"]
-        return [dict(zip(cols, row)) for row in rows]
+        return [self._clean_article_for_display(dict(zip(cols, row))) for row in rows]
+
+    def _clean_article_for_display(self, article: dict) -> dict:
+        cleaned = dict(article)
+        for field in ("title", "description", "summary", "translation", "topic"):
+            cleaned[field] = clean_display_text(cleaned.get(field) or "")
+        cleaned["content"] = clean_article_text(cleaned.get("content") or "")
+        return cleaned
 
     # --- Keywords ---
 

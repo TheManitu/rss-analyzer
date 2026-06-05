@@ -105,7 +105,7 @@ def credibility_label(ctx: dict) -> str:
     if source_type == "official":
         return "offizielle Quelle"
     if ctx.get("is_speculative"):
-        return "unbestaetigte Quelle"
+        return "unbestätigte Quelle"
     if source_type == "third_party":
         return "Drittquelle"
     return source_type or "Quelle"

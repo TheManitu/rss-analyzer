@@ -24,7 +24,7 @@ def test_classify_rumor_source_as_unconfirmed():
     assert source["source_type"] == "speculative"
     assert source["is_official"] is False
     assert source["is_speculative"] is True
-    assert credibility_label(source) == "unbestaetigte Quelle"
+    assert credibility_label(source) == "unbestätigte Quelle"
 
 
 def test_classify_prediction_market_and_canary_log_as_unconfirmed():

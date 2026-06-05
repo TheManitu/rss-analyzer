@@ -9,8 +9,8 @@ from api.filters import first_words, truncatewords
 from api.utils import extract_topic_from_question, store_question_event
 from config import FINAL_CONTEXTS
 from logging_service.kafka_config_and_logger import log_answer_quality, log_user_question
-from pipeline.source_quality import classify_source
-from pipeline.text_quality import clean_article_text, is_useful_article_text, is_valid_source_link, snippet
+from pipeline.source_quality import classify_source, source_domain
+from pipeline.text_quality import clean_article_text, clean_display_text, is_useful_article_text, is_valid_source_link, snippet
 from retrieval.passage_retriever import PassageRetriever
 from storage.topic_tracker import create_topic_table, get_all_topics, update_topic
 
@@ -42,6 +42,13 @@ SPECULATIVE_QUERY_TERMS = (
     "unbestätigt",
     "prediction market",
     "polymarket",
+)
+
+GPT_SOURCE_TERMS = (
+    "openai",
+    "chatgpt",
+    "gpt",
+    "codex",
 )
 
 
@@ -124,7 +131,7 @@ def build_contexts_from_passages(passages: list[dict], limit: int = FINAL_CONTEX
         row_content = row[2] if row else None
         row_description = row[3] if row else None
 
-        title = clean_article_text(row_title or passage.get("title") or "Ohne Titel")
+        title = clean_display_text(row_title or passage.get("title") or "Ohne Titel")
         summary = clean_article_text(
             row_summary
             or passage.get("summary")
@@ -163,12 +170,38 @@ def sources_from_contexts(contexts: list[dict]) -> list[dict]:
         "title": ctx["title"],
         "link": ctx["link"],
         "snippet": snippet(ctx["summary"], 220),
+        "domain": source_domain(ctx["link"]),
+        "discussion": source_discussion(ctx),
         "score": ctx.get("score", 0),
         "source_type": ctx.get("source_type"),
         "credibility_score": ctx.get("credibility_score", 0),
         "is_official": ctx.get("is_official", False),
         "is_speculative": ctx.get("is_speculative", False),
     } for ctx in contexts]
+
+
+def source_discussion(ctx: dict) -> str:
+    domain = source_domain(ctx.get("link", ""))
+    combined = f"{ctx.get('title', '')} {ctx.get('summary', '')}".lower()
+    prefix = "Für GPT-/OpenAI-Fragen: " if any(term in combined for term in GPT_SOURCE_TERMS) else ""
+
+    if ctx.get("is_official"):
+        return clean_display_text(
+            f"{prefix}offizielle Quelle ({domain}); für bestätigte Produkt-, Release- und Sicherheitsangaben am stärksten gewichtet."
+        )
+    if ctx.get("source_type") == "community":
+        return clean_display_text(
+            f"{prefix}Community-Quelle ({domain}); gut für frühe Hinweise, aber nur mit Bestätigung oder weiteren Quellen belastbar."
+        )
+    if ctx.get("is_speculative"):
+        return clean_display_text(
+            f"{prefix}unbestätigte Quelle ({domain}); geeignet für Leaks, Gerüchte und Marktlage, nicht als bestätigter Produktfakt."
+        )
+    if ctx.get("source_type") == "third_party":
+        return clean_display_text(
+            f"{prefix}Drittquelle ({domain}); nützlich zur Einordnung, sollte bei Release- oder Feature-Fakten gegengeprüft werden."
+        )
+    return clean_display_text(f"Quelle ({domain}); Relevanz und Aussagen wurden gegen die Frage geprüft.")
 
 
 def answer_question(question: str) -> tuple[str, list[dict], list[dict], list[dict], str, dict]:

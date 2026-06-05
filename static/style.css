@@ -797,6 +797,15 @@ input {
     text-transform: uppercase;
 }
 
+.source-discussion {
+    margin-top: 7px;
+    padding-left: 10px;
+    border-left: 2px solid rgba(226, 61, 40, 0.28);
+    color: rgba(23, 27, 31, 0.78);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .source-snippet {
     margin-top: 5px;
     color: rgba(23, 27, 31, 0.64);
@@ -973,6 +982,10 @@ html[data-theme="dark"] .answer-box,
 html[data-theme="dark"] .sources-box {
     background: var(--reader-answer-bg);
     color: var(--reader-answer-text);
+}
+
+html[data-theme="dark"] .source-discussion {
+    color: rgba(23, 27, 31, 0.78);
 }
 
 html[data-theme="dark"] .result-panel[open] summary {
