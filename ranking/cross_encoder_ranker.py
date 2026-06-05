@@ -1,7 +1,15 @@
 # ranking/cross_encoder_ranker.py
 
-from sentence_transformers import CrossEncoder
+import logging
+
+try:
+    from sentence_transformers import CrossEncoder
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    CrossEncoder = None
+
 from config import CROSS_ENCODER_MODEL
+
+logger = logging.getLogger(__name__)
 
 class CrossEncoderRanker:
     """
@@ -12,7 +20,12 @@ class CrossEncoderRanker:
 
     def __init__(self):
         # Modell wird einmalig geladen
-        self.model = CrossEncoder(CROSS_ENCODER_MODEL)  # :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
+        self.model = None
+        if CrossEncoder is not None:
+            try:
+                self.model = CrossEncoder(CROSS_ENCODER_MODEL)
+            except Exception as exc:
+                logger.warning("CrossEncoder nicht verfuegbar, nutze bestehende Scores: %s", exc)
 
     def rerank(self, query: str, candidates: list[dict]) -> list[dict]:
         """
@@ -21,8 +34,12 @@ class CrossEncoderRanker:
         - query: die Nutzerfrage
         - candidates: Liste von Dikt-Objekten mit mindestens dem Key "text"
         """
+        if not candidates:
+            return []
+        if self.model is None:
+            return sorted(candidates, key=lambda x: x.get("score", 0), reverse=True)
         # Extrahiere nur die Text-Passagen
-        texts = [c["text"] for c in candidates]
+        texts = [c.get("text") or c.get("summary") or c.get("content") or "" for c in candidates]
         # Erzeuge Paare [query, passage]
         pairs = [[query, t] for t in texts]
         # Vorhersage der Scores

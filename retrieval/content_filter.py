@@ -1,33 +1,47 @@
 import re
 from storage.duckdb_storage import DuckDBStorage
+from pipeline.text_quality import clean_article_text, is_useful_article_text, is_valid_source_link
 
 class ContentFilter:
     """
-    Filtert eine Liste von Artikeln anhand von Duplikaten und Mindestgröße.
+    Filtert Artikel/Passagen anhand von Duplikaten, Quellen und Textqualitaet.
     """
-    def __init__(self):
+    def __init__(self, min_words: int = 10):
         self.db = DuckDBStorage()
+        self.min_words = min_words
 
     def apply(self, candidates: list[dict], question: str) -> list[dict]:
         """
-        :param candidates: Liste von Dicts mit keys 'title','link','content','summary','topic'
+        :param candidates: Liste von Dicts mit keys wie 'title','link','content','summary','text'
         :param question:   Nutzerfrage zur Themenbestimmung (wird aktuell nicht genutzt)
         :return: Gefilterte Liste von Kandidaten
         """
         seen = set()
         out = []
         for art in candidates:
-            link = art.get("link")
-            if link in seen:
+            link = (art.get("link") or "").strip()
+            if link and not is_valid_source_link(link):
                 continue
-            text = (art.get("title","") + " " +
-                    art.get("content","") + " " +
-                    art.get("summary","")).lower()
-            # Mindestlänge: mindestens 10 Wörter
-            if len(text.split()) < 10:
+
+            text = clean_article_text(" ".join(
+                str(art.get(key) or "")
+                for key in ("title", "text", "section_text", "content", "summary", "description")
+            ))
+            fingerprint = link or re.sub(r"\W+", " ", text.lower())[:160]
+            if not fingerprint or fingerprint in seen:
                 continue
-            seen.add(link)
-            out.append(art)
+            if not is_useful_article_text(text, min_words=self.min_words):
+                continue
+
+            cleaned = dict(art)
+            if cleaned.get("text"):
+                cleaned["text"] = clean_article_text(cleaned["text"])
+            if cleaned.get("summary"):
+                cleaned["summary"] = clean_article_text(cleaned["summary"])
+            if cleaned.get("content"):
+                cleaned["content"] = clean_article_text(cleaned["content"])
+            seen.add(fingerprint)
+            out.append(cleaned)
         return out
 
     # Für Kompatibilität mit api.py (ruft `.filter(...)` auf)
@@ -78,13 +92,17 @@ def keyword_filter(keywords: list, top_n: int = 500) -> list:
     db  = DuckDBStorage()
     con = db.connect(read_only=True)
 
-    clauses = " OR ".join(
-        f"title ILIKE '%{kw}%' OR content ILIKE '%{kw}%'"
-        for kw in keywords
-    ) or "1=1"
-
-    query = f"SELECT link FROM articles WHERE {clauses} LIMIT {top_n};"
-    rows = con.execute(query).fetchall()
+    clean_keywords = [str(kw).strip() for kw in keywords if str(kw).strip()]
+    if clean_keywords:
+        clauses = " OR ".join("title ILIKE ? OR content ILIKE ?" for _ in clean_keywords)
+        params = []
+        for kw in clean_keywords:
+            like = f"%{kw}%"
+            params.extend([like, like])
+        params.append(top_n)
+        rows = con.execute(f"SELECT link FROM articles WHERE {clauses} LIMIT ?;", params).fetchall()
+    else:
+        rows = con.execute("SELECT link FROM articles LIMIT ?;", (top_n,)).fetchall()
     con.close()
 
     return [r[0] for r in rows]

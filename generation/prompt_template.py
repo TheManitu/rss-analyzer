@@ -16,9 +16,10 @@ def build_merge_prompt(contexts: list[dict], word_limit: int) -> str:
     sections = []
     for idx, c in enumerate(contexts, start=1):
         sections.append(
-            f"[{idx}] {c['title']}\n"
-            f"Link: {c['link']}\n"
-            f"Summary:\n{c['summary']}\n"
+            f"[{idx}] {c.get('title', 'Ohne Titel')}\n"
+            f"Link: {c.get('link', '')}\n"
+            f"Quellentyp: {c.get('source_type', 'unbekannt')}\n"
+            f"Summary:\n{c.get('summary') or c.get('text') or c.get('content') or ''}\n"
         )
     return header + "\n".join(sections)
 
@@ -28,7 +29,7 @@ def build_answer_prompt(question: str,
                         merged_summary: str) -> str:
     # Artikel-Übersicht (Titel + Link)
     articles = "Relevante Artikel:\n" + "\n".join(
-        f"[{i+1}] {c['title']} – {c['link']}"
+        f"[{i+1}] {c.get('title', 'Ohne Titel')} - {c.get('link', '')}"
         for i, c in enumerate(contexts)
     ) + "\n\n"
 
@@ -40,7 +41,18 @@ def build_answer_prompt(question: str,
     )
     footer = (
         "WICHTIG: Antworte ausschließlich auf Basis der obigen Meta-Zusammenfassung. "
-        "Erfinde keine neuen Fakten oder Quellen. Antworte ausführlich und fließend in Deutsch."
+        "Erfinde keine neuen Fakten oder Quellen. Belege jede zentrale Aussage mit "
+        "Quellenmarkern wie [1] oder [2]. Wenn die Quellen die Frage nicht beantworten, "
+        "sage klar, dass keine ausreichenden Daten in den Artikeln vorliegen. Gehe direkt "
+        "auf die konkrete Nutzerfrage ein: beantworte erst die eigentliche Frage, danach "
+        "ordne Details und Einschraenkungen ein. Schreibe in fluessigem Deutsch mit "
+        "vollstaendigen Saetzen und kurzen Absaetzen; nutze Stichpunkte nur, wenn eine "
+        "echte Aufzaehlung besser lesbar ist. Schneide relevante Einordnungen nicht ab. "
+        "Strukturiere die Antwort mit den Abschnitten Kurzfazit, Gesicherter Stand, "
+        "Feature-Einschaetzung, Release-Stand, Diskutierte unbestaetigte Hinweise "
+        "und Quellenlage, wenn die Frage nach einem unveroeffentlichten oder "
+        "versionierten Modell fragt. Behandle Geruechte, Leaks und Community-Posts nie "
+        "als bestaetigte Produktinformationen, sondern erklaere ihre Aussagekraft im Text."
     )
     return header + body + footer
 

@@ -2,16 +2,22 @@
 # pipeline/segmentation.py
 
 import logging
-import nltk
-from nltk.tokenize import sent_tokenize
+import re
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    nltk = None
+    sent_tokenize = None
 from storage.duckdb_storage import DuckDBStorage
 
 # Stelle sicher, dass beide Tokenizer-Modelle vorhanden sind
-for resource in ('punkt', 'punkt_tab'):
-    try:
-        nltk.data.find(f'tokenizers/{resource}')
-    except LookupError:
-        nltk.download(resource)
+if nltk is not None:
+    for resource in ('punkt', 'punkt_tab'):
+        try:
+            nltk.data.find(f'tokenizers/{resource}')
+        except LookupError:
+            nltk.download(resource)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -32,7 +38,10 @@ class Segmenter:
         1) in Sätze splitten
         2) überlappende Fenster der Größe section_size erzeugen
         """
-        sentences = sent_tokenize(text)
+        if sent_tokenize is not None:
+            sentences = sent_tokenize(text)
+        else:
+            sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text or "") if s.strip()]
         windows = []
         i = 0
         while i < len(sentences):

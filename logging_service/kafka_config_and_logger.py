@@ -6,14 +6,27 @@ import logging
 from datetime import datetime, timezone
 import atexit
 
-from kafka import KafkaProducer
-from kafka.errors import NoBrokersAvailable
-from kafka.admin import KafkaAdminClient, NewTopic
+try:
+    from kafka import KafkaProducer
+    from kafka.errors import NoBrokersAvailable
+    from kafka.admin import KafkaAdminClient, NewTopic
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    KafkaProducer = None
+    KafkaAdminClient = None
+    NewTopic = None
+
+    class NoBrokersAvailable(Exception):
+        pass
 
 # -----------------------------------------------------------------------------
 # Kafka-Konfiguration (anpassbar via ENV)
 # -----------------------------------------------------------------------------
-BOOTSTRAP_SERVERS    = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092").split(",")
+_BOOTSTRAP_ENV       = os.getenv("KAFKA_BOOTSTRAP_SERVERS") or os.getenv("KAFKA_BOOTSTRAP") or ""
+BOOTSTRAP_SERVERS    = [server for server in _BOOTSTRAP_ENV.split(",") if server]
+KAFKA_ENABLED        = os.getenv(
+    "ENABLE_KAFKA_LOGGING",
+    "true" if BOOTSTRAP_SERVERS else "false"
+).lower() in ("1", "true", "yes")
 TOPIC_USER_QUESTIONS = os.getenv("TOPIC_USER_QUESTIONS", "UserQuestions")
 TOPIC_ARTICLE_VIEWS  = os.getenv("TOPIC_ARTICLE_VIEWS",  "ArticleViews")
 TOPIC_ANSWER_QUALITY = os.getenv("TOPIC_ANSWER_QUALITY", "AnswerQuality")
@@ -24,6 +37,12 @@ REPLICATION_FACTOR   = int(os.getenv("KAFKA_TOPIC_REPLICATION_FACTOR", "1"))
 # Topics initialisieren
 # -----------------------------------------------------------------------------
 def ensure_topics():
+    if not KAFKA_ENABLED or not BOOTSTRAP_SERVERS:
+        logging.debug("Kafka-Logging nicht konfiguriert; Topic-Setup uebersprungen.")
+        return
+    if KafkaAdminClient is None:
+        logging.debug("Kafka-Paket nicht installiert; Topic-Setup uebersprungen.")
+        return
     try:
         admin    = KafkaAdminClient(bootstrap_servers=BOOTSTRAP_SERVERS)
         existing = set(admin.list_topics())
@@ -39,8 +58,9 @@ def ensure_topics():
     except Exception as e:
         logging.warning(f"Could not ensure Kafka topics: {e}")
 
-# Beim Import direkt ausführen
-ensure_topics()
+# Topic-Setup ist opt-in, damit lokale UI/API-Starts ohne Kafka nicht am Import rauschen.
+if os.getenv("ENABLE_KAFKA_TOPIC_SETUP", "false").lower() in ("1", "true", "yes"):
+    ensure_topics()
 
 # -----------------------------------------------------------------------------
 # Lazy-initialisierter KafkaProducer
@@ -49,6 +69,12 @@ _producer = None
 
 def _get_producer():
     global _producer
+    if not KAFKA_ENABLED or not BOOTSTRAP_SERVERS:
+        logging.debug("Kafka-Logging nicht konfiguriert; Event wird verworfen.")
+        return None
+    if KafkaProducer is None:
+        logging.debug("Kafka-Paket nicht installiert; Events werden verworfen.")
+        return None
     if _producer is None:
         try:
             _producer = KafkaProducer(

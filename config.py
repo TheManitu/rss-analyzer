@@ -27,13 +27,55 @@ RSS_FEEDS = [
     "https://blog.google/technology/ai/rss/",
     "https://azure.microsoft.com/en-us/blog/topics/artificial-intelligence/feed/",
     "https://aws.amazon.com/blogs/machine-learning/feed/",
-    "https://medium.com/feed/topic/artificial-intelligence"
+    "https://medium.com/feed/topic/artificial-intelligence",
+    # Zusaetzliche, am 03.06.2026 verifizierte aktuelle AI-/Tech-Feeds.
+    "https://research.google/blog/rss/",
+    "https://blogs.nvidia.com/feed/",
+    "https://www.microsoft.com/en-us/research/feed/",
+    "https://www.artificialintelligence-news.com/feed/",
+    "https://www.the-decoder.com/feed/",
+    "https://www.golem.de/rss.php?feed=RSS2.0",
+    "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
+    "https://www.theregister.com/software/ai_ml/headlines.atom",
+    "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss",
+    "https://simonwillison.net/atom/everything/",
+    "https://venturebeat.com/category/ai/feed/"
+]
+
+# Offizielle Quellen, die keine RSS-Feeds sind, aber fuer aktuelle
+# Produkt-/Modellfragen als hochwertige Kontextquellen dienen.
+TRUSTED_SOURCE_URLS = [
+    "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
+    "https://help.openai.com/en/articles/9624314-model-release-notes",
+    "https://help.openai.com/en/articles/11909943-gpt-5-5-in-chatgpt",
+]
+
+# Fragegetriebene Discovery-Feeds fuer aktuelle OpenAI-/Modellthemen.
+# Bing News RSS funktioniert ohne API-Key und liefert die Original-URL im
+# Redirect-Parameter; die Ingestion dekodiert diese URL vor dem Speichern.
+ENABLE_DISCOVERY_FEEDS = os.getenv("ENABLE_DISCOVERY_FEEDS", "true").lower() in ("1", "true", "yes")
+DISCOVERY_RSS_FEEDS = [
+    "https://www.bing.com/news/search?q=%22GPT-5.6%22%20%22OpenAI%22&format=rss",
+    "https://www.bing.com/news/search?q=%22ChatGPT%205.6%22%20%22OpenAI%22&format=rss",
+    "https://www.bing.com/news/search?q=%22GPT-5.6%22%20%22release%20date%22&format=rss",
+] if ENABLE_DISCOVERY_FEEDS else []
+
+# Kuratierte Zusatzquellen fuer die aktuelle GPT-5.6-Frage. Diese Quellen
+# werden nicht als offiziell behandelt; source_quality markiert Leaks,
+# Prediction-Markets und Geruechte als unbestaetigt.
+DISCOVERY_SOURCE_URLS = [
+    "https://tokenmix.ai/blog/gpt-5-6-release-date-leaks-2026",
+    "https://chatforest.com/reviews/openai-gpt-5-6-canary-leak-release-date-prediction-markets-2026/",
+    "https://dev.to/tokenmixai/gpt-56-is-real-a-codex-log-says-so-everything-else-is-made-up-1ep1",
+    "https://wavespeed.ai/blog/posts/gpt-5-6-canary-leak-what-we-know/",
+    "https://www.predictionmarketnetwork.com/article/openai-releases-gpt-55-amid-market-speculation-over-next-ver-210007-20260527",
 ]
 
 # Clean-Up-Schwellen
 MIN_ARTICLE_WORDS      = int(os.getenv("MIN_ARTICLE_WORDS",      150))
 MAX_PUNCT_RATIO        = float(os.getenv("MAX_PUNCT_RATIO",       0.30))
 MAX_FETCH_WORKERS      = int(os.getenv("MAX_FETCH_WORKERS",       10))
+MAX_FEED_ENTRIES_PER_FEED = int(os.getenv("MAX_FEED_ENTRIES_PER_FEED", 12))
 
 # Sprach- und Blacklist-Filter
 ALLOWED_LANGUAGES      = os.getenv("ALLOWED_LANGUAGES", "de,en").split(",")

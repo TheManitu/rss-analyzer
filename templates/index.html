@@ -1,86 +1,177 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>RSS Analyzer mit RAG</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RSS Analyzer</title>
+  <script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem('rss-analyzer-theme');
+        if (storedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (_err) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260605-demo-polish">
 </head>
-<body>
-  <header>
-  <div class="header-container">
-    <div class="logo">
-      <img src="{{ url_for('static', filename='rssanswers.png') }}" alt="Logo">
-    </div>
+<body class="reader-body">
+  <div class="reader-shell">
+    <aside class="feed-sidebar" aria-label="RSS Navigation">
+      <div class="brand-block">
+        <img src="{{ url_for('static', filename='rss-analyzer-logo.png') }}?v=20260603-logo" alt="RSS Analyzer Logo">
+        <div class="brand-actions">
+          <button id="theme-toggle-button" class="icon-button" type="button" title="Dark Theme aktivieren" aria-label="Theme wechseln" aria-pressed="false">
+            <span class="theme-icon" aria-hidden="true">◐</span>
+          </button>
+          <button id="refresh-button" class="icon-button" type="button" title="Feeds aktualisieren" aria-label="Feeds aktualisieren">
+            <span aria-hidden="true">↻</span>
+          </button>
+        </div>
+      </div>
 
-    <form id="search-form" class="search-form" method="post" action="/rag">
-      <input id="search-input" type="text" name="question" placeholder="Stelle irgendeine Frage">
-      <button type="submit">Suchen</button>
-      <div id="spinner" class="spinner"></div>
-    </form>
+      <section class="sidebar-section">
+        <div class="section-label">Zeitfilter</div>
+        <nav class="filter-list" aria-label="Artikelzeitraum">
+          <a class="filter-item {% if time_filter == 'today' %}active{% endif %}" href="/?time_filter=today">
+            <span>Heute</span>
+            <strong>{{ counts.today }}</strong>
+          </a>
+          <a class="filter-item {% if time_filter == '3_days' %}active{% endif %}" href="/?time_filter=3_days">
+            <span>3 Tage</span>
+            <strong>{{ counts['3_days'] }}</strong>
+          </a>
+          <a class="filter-item {% if time_filter == '7_days' %}active{% endif %}" href="/?time_filter=7_days">
+            <span>7 Tage</span>
+            <strong>{{ counts['7_days'] }}</strong>
+          </a>
+          <a class="filter-item {% if time_filter == '14_days' %}active{% endif %}" href="/?time_filter=14_days">
+            <span>14 Tage</span>
+            <strong>{{ counts['14_days'] }}</strong>
+          </a>
+        </nav>
+      </section>
+
+      <section class="sidebar-section sidebar-grow">
+        <div class="section-label">Themen</div>
+        <div class="topic-list">
+          {% for topic in topics[:12] %}
+            <div class="topic-row">
+              <div class="topic-main">
+                <span class="topic-dot {% if topic.is_complete %}complete{% endif %}"></span>
+                <span class="topic-name">{{ topic.topic }}</span>
+              </div>
+              <span class="topic-count">{{ topic.article_count }}</span>
+            </div>
+          {% else %}
+            <div class="empty-note">Noch keine Themen erfasst.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="sidebar-section compact">
+        <div class="section-label">System</div>
+        <div class="system-grid">
+          <div>
+            <strong>{{ articles|length }}</strong>
+            <span>sichtbar</span>
+          </div>
+          <div>
+            <strong>{{ top_articles|length }}</strong>
+            <span>{{ top_metric_label }}</span>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="article-column">
+      <header class="article-toolbar">
+        <div>
+          <p class="eyebrow">Aktuelle Quellen</p>
+          <h1>Artikelstrom</h1>
+        </div>
+        <div class="toolbar-meta">
+          <span>{{ articles|length }} Artikel</span>
+          <span>{{ time_filter.replace('_', ' ') }}</span>
+        </div>
+      </header>
+
+      <section class="question-strip" aria-label="KI-Frage stellen">
+        <form id="search-form" class="search-form" method="post" action="/rag">
+          <input id="search-input" type="text" name="question" placeholder="Frage an aktuelle Quellen stellen...">
+          <button type="submit">Fragen</button>
+          <div id="spinner" class="spinner" aria-hidden="true"></div>
+        </form>
+      </section>
+
+      <section class="article-list" aria-label="RSS Artikel">
+        {% if top_articles %}
+          <div class="list-group-heading">{{ top_label }}</div>
+          {% for art in top_articles %}
+            <details class="article featured">
+              <summary>
+                <div class="article-card-head">
+                  <span class="feed-pill">{{ art.topic }}</span>
+                  <span class="article-date">{{ art.published.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="article-title">
+                  <a href="{{ art.link }}" target="_blank" rel="noopener">{{ art.title }}</a>
+                </div>
+                <p class="preview-content">{{ art.summary|truncatewords(52) }}</p>
+              </summary>
+              <div class="full-content">
+                <a class="source-link" href="{{ art.link }}" target="_blank" rel="noopener">Originalquelle öffnen</a>
+                {{ art.content|trim }}
+              </div>
+            </details>
+          {% endfor %}
+        {% endif %}
+
+        <div class="list-group-heading">Alle Artikel</div>
+        {% for art in articles %}
+          <details class="article">
+            <summary>
+              <div class="article-card-head">
+                <span class="feed-pill">{{ art.topic }}</span>
+                <span class="article-date">{{ art.published.strftime('%d.%m.%Y') }}</span>
+              </div>
+              <div class="article-title">
+                <a href="{{ art.link }}" target="_blank" rel="noopener">{{ art.title }}</a>
+              </div>
+              <p class="preview-content">{{ art.summary|truncatewords(46) }}</p>
+            </summary>
+            <div class="full-content">
+              <a class="source-link" href="{{ art.link }}" target="_blank" rel="noopener">Originalquelle öffnen</a>
+              {{ art.content|trim }}
+            </div>
+          </details>
+        {% else %}
+          <div class="empty-state">
+            <strong>Keine Artikel gefunden.</strong>
+            <span>Aktualisiere die Feeds oder erweitere den Zeitraum.</span>
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+
+    <aside class="research-panel" aria-label="KI Forschungsbereich">
+      <div class="research-header">
+        <div>
+          <p class="eyebrow">KI-Forschungsbereich</p>
+          <h2>Antwort & Quellen</h2>
+        </div>
+        <span class="status-dot" aria-hidden="true"></span>
+      </div>
+
+      <div class="research-empty">
+        <strong>Bereit für Fragen.</strong>
+        <span>Stelle links eine Frage. Die Antwort erscheint hier mit Quellenbewertung und Snippets.</span>
+      </div>
+
+      <details id="live-answer-box" class="answer-box result-panel"></details>
+      <details id="sources-box" class="sources-box result-panel"></details>
+    </aside>
   </div>
-</header>
 
-  <main>
-    <div class="main-container">
-      <div id="live-answer-box" class="answer-box"></div>
-      <div id="sources-box"    class="sources-box"></div>
-    </div>
-
-    <!-- Statistiken -->
-    <details class="stats">
-      <summary class="stats-summary">Statistiken anzeigen</summary>
-      <ul class="stats-list">
-        <li>Heute: {{ counts.today }}</li>
-        <li>Letzte 3 Tage: {{ counts['3_days'] - counts.today }}</li>
-        <li>Letzte 7 Tage: {{ counts['7_days'] - counts['3_days'] }}</li>
-        <li>Letzte 14 Tage: {{ counts['14_days'] - counts['7_days'] }}</li>
-      </ul>
-    </details>
-
-    <!-- Top-Artikel heute -->
-    <div class="top-articles">
-      <h2>Top-Artikel heute ({{ top_articles|length }})</h2>
-      {% for art in top_articles %}
-        <details class="article">
-          <summary>
-            <div class="title">
-              <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
-            </div>
-            <div class="meta">
-              {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
-            </div>
-            <div class="preview-content">
-              {{ art.summary|truncatewords(100) }}
-            </div>
-          </summary>
-          <div class="full-content">{{ art.content|trim }}</div>
-        </details>
-      {% endfor %}
-    </div>
-
-    <!-- Alle Artikel -->
-    <div class="all-articles">
-      <h2>Alle Artikel</h2>
-      {% for art in articles %}
-        <details class="article">
-          <summary>
-            <div class="title">
-              <a href="{{ art.link }}" target="_blank">{{ art.title }}</a>
-            </div>
-            <div class="meta">
-              {{ art.published.strftime('%d.%m.%Y') }} • {{ art.topic }}
-            </div>
-            <div class="preview-content">
-              {{ art.summary|truncatewords(100) }}
-            </div>
-          </summary>
-          <div class="full-content">{{ art.content|trim }}</div>
-        </details>
-      {% endfor %}
-    </div>
-  </main>
-
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260605-demo-polish"></script>
 </body>
 </html>

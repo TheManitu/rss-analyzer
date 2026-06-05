@@ -3,7 +3,10 @@
 
 import re
 import logging
-import numpy as np
+try:
+    import numpy as np
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    np = None
 from storage.duckdb_storage import DuckDBStorage
 from config import (
     SYN_WEIGHT,
@@ -14,7 +17,10 @@ from config import (
     TOPIC_EMB_THRESHOLD,
 )
 from topic_config import TOPIC_MAPPING, TOPIC_SYNONYMS
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    SentenceTransformer = None
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -33,14 +39,20 @@ class TopicAssigner:
 
         # Embedding-Modell initialisieren
         logger.info(f"[TopicAssigner] lade Embedding-Modell '{TOPIC_EMB_MODEL}'…")
-        self.emb_model = SentenceTransformer(TOPIC_EMB_MODEL)
+        self.emb_model = None
+        if SentenceTransformer is not None:
+            try:
+                self.emb_model = SentenceTransformer(TOPIC_EMB_MODEL)
+            except Exception as exc:
+                logger.warning("[TopicAssigner] Embedding-Modell nicht verfuegbar: %s", exc)
         # Topic-Prototypen einbetten
         self.topic_embs = {}
-        for topic, conf in TOPIC_MAPPING.items():
-            proto_text = topic + " " + " ".join(
-                conf["keywords"] + TOPIC_SYNONYMS.get(topic, [])
-            )
-            self.topic_embs[topic] = self.emb_model.encode(proto_text, convert_to_numpy=True)
+        if self.emb_model is not None:
+            for topic, conf in TOPIC_MAPPING.items():
+                proto_text = topic + " " + " ".join(
+                    conf["keywords"] + TOPIC_SYNONYMS.get(topic, [])
+                )
+                self.topic_embs[topic] = self.emb_model.encode(proto_text, convert_to_numpy=True)
 
     def assign_topic(self, title: str, content: str) -> str:
         text_lower  = f"{title} {content}".lower()
@@ -69,13 +81,14 @@ class TopicAssigner:
         }
 
         # 4) Embedding-Score berechnen
-        art_emb = self.emb_model.encode(f"{title} {content}", convert_to_numpy=True)
-        emb_scores = {}
-        for t, te in self.topic_embs.items():
-            emb_scores[t] = float(
-                np.dot(art_emb, te) /
-                ((np.linalg.norm(art_emb) * np.linalg.norm(te)) + 1e-8)
-            )
+        emb_scores = {t: 0.0 for t in TOPIC_MAPPING}
+        if self.emb_model is not None and np is not None:
+            art_emb = self.emb_model.encode(f"{title} {content}", convert_to_numpy=True)
+            for t, te in self.topic_embs.items():
+                emb_scores[t] = float(
+                    np.dot(art_emb, te) /
+                    ((np.linalg.norm(art_emb) * np.linalg.norm(te)) + 1e-8)
+                )
 
         # 5) Kombiniere zu finalen Scores
         final_scores = {

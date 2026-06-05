@@ -3,13 +3,31 @@
 
 import os
 import argparse
-import yaml
-from langdetect import detect
-import spacy
-import yake
+try:
+    import yaml
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    yaml = None
+try:
+    from langdetect import detect
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    detect = None
+try:
+    import spacy
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    spacy = None
+try:
+    import yake
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    yake = None
 
-from keybert import KeyBERT
-from sentence_transformers import SentenceTransformer
+try:
+    from keybert import KeyBERT
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    KeyBERT = None
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    SentenceTransformer = None
 
 from storage.duckdb_storage import DuckDBStorage
 
@@ -18,6 +36,8 @@ DEFAULT_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 MMR_DIVERSITY   = 0.7
 
 def load_synonyms(path: str) -> dict:
+    if yaml is None:
+        raise RuntimeError("PyYAML ist fuer Synonym-Loading nicht installiert")
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
@@ -43,6 +63,19 @@ class LanguageAwareKeywordExtractor:
         self.db_path   = db_path    or os.getenv("DB_PATH")
         self.top_n     = top_n
         self.synonyms  = load_synonyms(synonyms_path) if synonyms_path else {}
+
+        missing = [
+            name for name, module in {
+                "langdetect": detect,
+                "spacy": spacy,
+                "yake": yake,
+                "keybert": KeyBERT,
+                "sentence_transformers": SentenceTransformer,
+            }.items()
+            if module is None
+        ]
+        if missing:
+            raise RuntimeError("Keyword-Extraction-Abhaengigkeiten fehlen: " + ", ".join(missing))
 
         # Modelle nur einmal laden
         self.sbert     = SentenceTransformer(DEFAULT_MODEL)

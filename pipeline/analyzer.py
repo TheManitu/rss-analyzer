@@ -1,4 +1,7 @@
-import pandas as pd
+try:
+    import pandas as pd
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    pd = None
 from storage.duckdb_storage import DuckDBStorage
 
 class DataAnalyzer:
@@ -6,6 +9,8 @@ class DataAnalyzer:
         self.storage = DuckDBStorage(db_path=db_path)
 
     def run(self):
+        if pd is None:
+            raise RuntimeError("pandas ist fuer DataAnalyzer nicht installiert")
         con = self.storage.connect(read_only=True)
         df = con.execute("""
             SELECT link, topic, importance, summary,

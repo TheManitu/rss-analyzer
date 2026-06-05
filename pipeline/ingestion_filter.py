@@ -11,6 +11,7 @@ from config import (
     BLOCKED_TOPICS,
     TOPIC_ALLOW_PREFIX
 )
+from pipeline.text_quality import clean_article_text, quality_reasons
 import logging
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class IngestionFilter:
         """
         Validiert einen Artikel und gibt (is_valid, reason) zurück.
         """
+        content = clean_article_text(content)
         # 1) Wortzahl
         if cls.is_short(content):
             return False, f"Wortzahl < {MIN_ARTICLE_WORDS}"
@@ -85,6 +87,13 @@ class IngestionFilter:
         # 4) Blacklist-Muster
         if cls.has_blacklist_pattern(content):
             return False, "Enthält Blacklist-Muster"
+        # 4b) Deterministische Textqualitaet
+        reasons = [
+            reason for reason in quality_reasons(content, min_words=MIN_ARTICLE_WORDS)
+            if not reason.startswith("word_count")
+        ]
+        if reasons:
+            return False, "Textqualitaet: " + ",".join(reasons)
         # 5) Topic-Blacklist
         if cls.is_blocked_topic(topic):
             return False, f"Unerwünschtes Topic '{topic}'"

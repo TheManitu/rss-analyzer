@@ -29,13 +29,17 @@ from evaluation.quality_evaluator   import QualityEvaluator
 
 from api.utils      import extract_topic_from_question, store_question_event
 from api.filters    import first_words, truncatewords
-from api.rag        import rag_bp
+from api.rag        import answer_question, log_question_result, rag_bp
 
-from config import RSS_FEEDS, FINAL_CONTEXTS
 
 def create_app():
     logging.basicConfig(level=logging.INFO)
-    app = Flask(__name__, template_folder="./templates", static_folder="./static")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(base_dir, "templates"),
+        static_folder=os.path.join(base_dir, "static"),
+    )
     app.secret_key = os.getenv("FLASK_SECRET", "change_me")
 
     # Prometheus-Metriken
@@ -64,7 +68,7 @@ def create_app():
     else:
         logging.info("Starte RSS-Ingestion …")
         try:
-            RSSIngest(feeds=RSS_FEEDS, storage_client=storage).run()
+            RSSIngest(storage_client=storage).run()
         except Exception:
             logging.exception("Fehler bei RSS-Ingestion – überspringe und fahre fort")
 
@@ -154,8 +158,13 @@ def create_app():
 
     @app.route("/")
     def index():
+        time_filter = request.args.get("time_filter", "14_days")
         topics       = get_all_topics()
-        top_articles = storage.get_all_articles(time_filter="today") or storage.get_all_articles(time_filter="7_days")
+        today_articles = storage.get_all_articles(time_filter="today")
+        top_articles = today_articles or storage.get_all_articles(time_filter="7_days")
+        top_label = "Top-Artikel heute" if today_articles else "Top-Artikel aktuell"
+        top_metric_label = "top heute" if today_articles else "top aktuell"
+        articles     = storage.get_all_articles(time_filter=time_filter)
         counts = {
             "today":   len(storage.get_all_articles(time_filter="today")),
             "3_days":  len(storage.get_all_articles(time_filter="3_days")),
@@ -165,13 +174,17 @@ def create_app():
         return render_template("index.html",
                                topics=topics,
                                top_articles=top_articles,
-                               counts=counts)
+                               articles=articles,
+                               counts=counts,
+                               time_filter=time_filter,
+                               top_label=top_label,
+                               top_metric_label=top_metric_label)
 
     @app.route("/api/refresh", methods=["POST"])
     def refresh():
         try:    ArticleCleaner(db_path=os.getenv("DB_PATH")).run()
         except: logging.exception("Cleanup failed")
-        try:    RSSIngest(feeds=RSS_FEEDS, storage_client=storage).run()
+        try:    RSSIngest(storage_client=storage).run()
         except: logging.exception("Ingest failed")
         try:    LanguageAwareKeywordExtractor().run()
         except: logging.exception("Keywords failed")
@@ -199,40 +212,8 @@ def create_app():
             response.status_code = 400
             return response
 
-        # Retrieval
-        passages = app.retriever.retrieve(q) or []
-
-        # Logging & Topic-Tracking
-        topic = extract_topic_from_question(q)
-        store_question_event(q, topic, len(passages))
-        update_topic(topic, delta=1)
-
-        # Filter → Rank → Generate → Evaluate
-        filtered = app.filterer.apply(passages, q)
-        ranked   = app.ranker.rank(q, filtered)
-        top_ctx  = ranked[:FINAL_CONTEXTS]
-        answer   = app.generator.generate(q, contexts=top_ctx)
-        eval_res = app.evaluator.evaluate(answer, top_ctx)
-
-        # Kafka-Logging
-        from logging_service.kafka_config_and_logger import log_user_question, log_answer_quality
-        log_user_question(q, topic, len(passages),
-                          [p["link"] for p in top_ctx],
-                          session['user_id'], session['session_id'])
-        log_answer_quality(used_article_ids=[p["link"] for p in top_ctx],
-                           quality_score=eval_res["score"],
-                           flag=eval_res["flag"],
-                           user_id=session['user_id'], session_id=session['session_id'])
-
-        # Quellen im JSON-Response
-        sources = [{
-            "title":       p.get("title"),
-            "link":        p.get("link"),
-            "section_idx": p.get("section_idx"),
-            "snippet":     (p.get("section_text","")[:200] + "…") if p.get("section_text") else "",
-            "score":       p.get("score", 0)
-        } for p in top_ctx]
-
+        answer, sources, contexts, passages, topic, eval_res = answer_question(q)
+        log_question_result(q, topic, passages, contexts, eval_res)
         return jsonify(answer=answer, sources=sources)
 
     return app

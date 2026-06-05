@@ -4,7 +4,7 @@ FROM python:3.10-slim
 
 # 1) System-Pakete
 RUN apt-get update && apt-get install -y \
-    build-essential git curl libgl1-mesa-glx && \
+    build-essential git curl libgl1-mesa-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # 2) CUDA-fähiges PyTorch & Faiss‐GPU

@@ -1,8 +1,13 @@
 from storage.duckdb_storage import DuckDBStorage
-from keybert import KeyBERT
+try:
+    from keybert import KeyBERT
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    KeyBERT = None
 
 class KeywordExtractor:
     def __init__(self, db_path=None, model_name="all-MiniLM-L6-v2", top_n=5):
+        if KeyBERT is None:
+            raise RuntimeError("KeyBERT ist fuer KeywordExtractor nicht installiert")
         self.storage = DuckDBStorage(db_path=db_path)
         self.extractor = KeyBERT(model=model_name)
         self.top_n = top_n

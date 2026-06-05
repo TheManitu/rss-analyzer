@@ -1,20 +1,39 @@
 # evaluation/quality_evaluator.py
 
-import numpy as np
 import math
+import re
 from datetime import datetime
 from retrieval.content_filter import check_quality_flags
 from storage.duckdb_storage import get_article_metadata
-from sentence_transformers import SentenceTransformer
+try:
+    import numpy as np
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    np = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    SentenceTransformer = None
 
 # Einmaliges Laden des Embedding-Modells
-_embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+_embedder = None
+if SentenceTransformer is not None:
+    try:
+        _embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    except Exception:
+        _embedder = None
 
 
 def compute_embedding_similarity(text1: str, text2: str) -> float:
     """
     Cosinus-Ähnlichkeit zwischen zwei Texten über normalisierte Embeddings.
     """
+    if _embedder is None or np is None:
+        terms1 = {t.lower() for t in re.findall(r"\w+", text1 or "")}
+        terms2 = {t.lower() for t in re.findall(r"\w+", text2 or "")}
+        if not terms1 or not terms2:
+            return 0.0
+        return len(terms1 & terms2) / len(terms1 | terms2)
     emb1 = _embedder.encode([text1], normalize_embeddings=True)[0]
     emb2 = _embedder.encode([text2], normalize_embeddings=True)[0]
     return float(np.dot(emb1, emb2))
@@ -46,11 +65,13 @@ class QualityEvaluator:
         :return:         Dict mit 'score' (0–1) und 'flag' (bool)
         """
         words = answer.split()
-        length_norm = min(len(words) / 200.0, 1.0)
-        ctx_norm    = min(len(contexts) / 5.0,   1.0)
-        # Gewichte: 70% Länge, 30% Kontext-Anzahl
-        score = 0.7 * length_norm + 0.3 * ctx_norm
-        flag  = score < self.threshold
+        length_norm = min(len(words) / 80.0, 1.0)
+        ctx_norm = min(len(contexts) / 2.0, 1.0)
+        cited = bool(re.search(r"\[\d+\]", answer or ""))
+        no_data = "keine ausreichenden" in (answer or "").lower()
+        citation_norm = 1.0 if cited or no_data else 0.0
+        score = 0.35 * length_norm + 0.35 * ctx_norm + 0.30 * citation_norm
+        flag = score < self.threshold or (bool(contexts) and not cited and not no_data)
         return {"score": score, "flag": flag}
 
 

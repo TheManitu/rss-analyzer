@@ -1,4 +1,7 @@
-import pandas as pd
+try:
+    import pandas as pd
+except Exception:  # pragma: no cover - optional runtime dependency guard
+    pd = None
 from storage.duckdb_storage import DuckDBStorage
 
 class DashboardGenerator:
@@ -7,6 +10,8 @@ class DashboardGenerator:
         self.output = output_path
 
     def run(self, article_limit: int = 25):
+        if pd is None:
+            raise RuntimeError("pandas ist fuer DashboardGenerator nicht installiert")
         # 1) Top-Artikel laden
         articles = self.storage.get_all_articles()
         df_articles = pd.DataFrame(articles).head(article_limit)

@@ -11,6 +11,12 @@ TOPIC_MAPPING = {
     "Allgemein": {"keywords": []},
 
     # KI-Plattformen & Modelle
+    "Künstliche Intelligenz & Maschinelles Lernen": {
+        "keywords": [
+            "ki", "ai", "ml", "machine learning", "deep learning", "neuronale netze",
+            "nlp", "computer vision", "generative ai", "llm", "transformer"
+        ]
+    },
     "OpenAI & GPT-Modelle": {
         "keywords": [
             "openai", "gpt-4", "gpt-3", "chatgpt", "dall-e", "codex", "whisper", "embeddings"
