@@ -14,6 +14,11 @@ TAG_RE = re.compile(r"<[^>]+>")
 WHITESPACE_RE = re.compile(r"\s+")
 CONTROL_RE = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]")
 MOJIBAKE_RE = re.compile(r"[\u00c2\u00c3\u00e2\ufffd]")
+MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:https?://|mailto:)[^)]+\)")
+MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]+\)")
+MARKDOWN_HEADING_RE = re.compile(r"(?m)(^|\s)#{1,6}\s+")
+MARKDOWN_CLOSING_HEADING_RE = re.compile(r"\s+#{1,6}(\s|$)")
+MARKDOWN_STRONG_RE = re.compile(r"(\*\*|__)")
 
 MOJIBAKE_REPLACEMENTS = {
     "\u00e2\u20ac\u2122": "'",
@@ -142,6 +147,23 @@ def repair_text_encoding(text: str) -> str:
     return unicodedata.normalize("NFKC", value)
 
 
+def strip_markdown_artifacts(text: str) -> str:
+    value = text or ""
+    if not value:
+        return ""
+    value = MARKDOWN_IMAGE_RE.sub(r"\1", value)
+    value = MARKDOWN_LINK_RE.sub(r"\1", value)
+    value = re.sub(r"\[([^\]]+)\]", r"\1", value)
+    value = MARKDOWN_HEADING_RE.sub(lambda match: "\n\n" if match.group(1).strip() == "" else "\n\n", value)
+    value = MARKDOWN_CLOSING_HEADING_RE.sub("\n\n", value)
+    value = re.sub(r"(?m)^\s*[-*+]\s+", "- ", value)
+    value = re.sub(r"\s+\*\s+", " ", value)
+    value = MARKDOWN_STRONG_RE.sub("", value)
+    value = re.sub(r"(?<!\w)\*([^*\n]+)\*(?!\w)", r"\1", value)
+    value = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"\1", value)
+    return value
+
+
 def strip_html(text: str) -> str:
     """Return readable text from HTML or plain text."""
     value = repair_text_encoding(unescape(text or ""))
@@ -152,6 +174,7 @@ def strip_html(text: str) -> str:
         value = soup.get_text(separator="\n")
     else:
         value = TAG_RE.sub(" ", value)
+    value = strip_markdown_artifacts(value)
     return re.sub(r"[ \t\f\v]+", " ", repair_text_encoding(unescape(value))).strip()
 
 
@@ -204,6 +227,35 @@ def clean_article_text(text: str) -> str:
         kept.append(line)
 
     return normalize_whitespace(" ".join(kept))
+
+
+def clean_article_display_text(text: str, sentences_per_paragraph: int = 3) -> str:
+    """Clean long article bodies while keeping readable paragraph breaks for UI display."""
+    plain = strip_html(text)
+    raw_parts = re.split(r"\n{2,}|[\r\n]+|(?<=[.!?])\s+", plain)
+    kept: list[str] = []
+    seen = set()
+    for raw in raw_parts:
+        line = normalize_whitespace(raw)
+        if is_boilerplate_line(line):
+            continue
+        fingerprint = line.lower()
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        kept.append(line)
+
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for line in kept:
+        current.append(line)
+        paragraph = " ".join(current)
+        if len(current) >= sentences_per_paragraph or len(paragraph) >= 520:
+            paragraphs.append(paragraph)
+            current = []
+    if current:
+        paragraphs.append(" ".join(current))
+    return "\n\n".join(paragraphs)
 
 
 def boilerplate_density(text: str) -> float:

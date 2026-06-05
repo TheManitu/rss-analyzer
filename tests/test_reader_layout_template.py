@@ -32,4 +32,9 @@ def test_index_template_uses_reader_design_and_functional_ids():
     assert ".research-panel .result-panel[open]" in style
     assert "overflow-y: auto" in style
     assert "overscroll-behavior: contain" in style
+    assert "--reader-answer-bg: #171b1f" in style
+    assert "--reader-answer-text: #f5f7fa" in style
+    assert "--scrollbar-thumb" in style
+    assert "scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track)" in style
+    assert "white-space: pre-line" in style
     assert 'content: "Einklappen"' in style

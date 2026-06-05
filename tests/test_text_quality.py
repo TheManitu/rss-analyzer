@@ -1,4 +1,4 @@
-from pipeline.text_quality import clean_article_text, clean_display_text, is_useful_article_text, is_valid_source_link
+from pipeline.text_quality import clean_article_display_text, clean_article_text, clean_display_text, is_useful_article_text, is_valid_source_link
 
 
 def test_clean_article_text_removes_boilerplate():
@@ -41,6 +41,25 @@ def test_clean_display_text_repairs_existing_stored_titles_without_boilerplate_d
     cleaned = clean_display_text(title)
 
     assert cleaned == "GPT-5.6 in OpenAI's Codex Logs - was dahinter steckt"
+
+
+def test_clean_article_text_removes_markdown_artifacts_from_scraped_sources():
+    raw = (
+        "## GPT-5.5 Instant Update ## We're updating **GPT-5.5 Instant** in ChatGPT. "
+        "Learn more: [Managing active sessions](https://help.openai.com/articles/20001257). "
+        "* Review sessions from settings."
+    )
+
+    cleaned = clean_article_text(raw)
+    display = clean_article_display_text(raw, sentences_per_paragraph=1)
+
+    assert "GPT-5.5 Instant Update" in cleaned
+    assert "GPT-5.5 Instant in ChatGPT" in cleaned
+    assert "Managing active sessions" in cleaned
+    assert "##" not in cleaned
+    assert "**" not in cleaned
+    assert "](" not in cleaned
+    assert "\n\n" in display
 
 
 def test_is_useful_article_text_rejects_ad_only_content():
