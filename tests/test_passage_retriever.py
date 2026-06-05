@@ -3,7 +3,7 @@
 import pytest
 from flask import Flask
 from storage.duckdb_storage import DuckDBStorage
-from retrieval.passage_retriever import PassageRetriever, _diverse_by_link
+from retrieval.passage_retriever import PassageRetriever, _diverse_by_link, required_query_terms
 from config import SYN_WEIGHT, TOPIC_THRESHOLD_FACTOR, TOPIC_TITLE_WEIGHT
 
 @pytest.fixture
@@ -99,6 +99,75 @@ def test_retrieve_versioned_model_name(app, tmp_path):
 
     assert results
     assert results[0]["link"] == "https://example.com/gpt-5-6"
+
+
+def test_retrieve_specific_codename_does_not_fallback_to_related_gpt_articles(app, tmp_path):
+    db_file = tmp_path / "codename.duckdb"
+    storage = DuckDBStorage(db_path=str(db_file))
+    con = storage.connect()
+    con.execute("""
+        INSERT INTO articles
+          (title, link, description, content, summary, published, topic, importance)
+        VALUES
+          (
+            'GPT-5.5 in ChatGPT',
+            'https://help.openai.com/gpt-5-5',
+            'Kurzbeschreibung',
+            'GPT-5.5 Instant ist der bestätigte Stand in ChatGPT und verbessert Antwortqualität.',
+            'GPT-5.5 Instant ist der bestätigte Stand in ChatGPT. Der Artikel beschreibt Modellqualität und Alltagshilfe.',
+            CURRENT_DATE,
+            'OpenAI & GPT-Modelle',
+            5.0
+          )
+    """)
+    con.close()
+
+    retriever = PassageRetriever(storage)
+    with app.app_context():
+        results = retriever.retrieve("Was ist GPT Iris?")
+
+    assert required_query_terms("Was ist GPT Iris?") == ["iris"]
+    assert required_query_terms("Ist Iris der Projektname von GPT 5.6?") == ["iris", "5.6"]
+    assert results == []
+
+
+def test_retrieve_specific_codename_uses_matching_source(app, tmp_path):
+    db_file = tmp_path / "codename_match.duckdb"
+    storage = DuckDBStorage(db_path=str(db_file))
+    con = storage.connect()
+    con.execute("""
+        INSERT INTO articles
+          (title, link, description, content, summary, published, topic, importance)
+        VALUES
+          (
+            'GPT-5.5 in ChatGPT',
+            'https://help.openai.com/gpt-5-5',
+            'Kurzbeschreibung',
+            'GPT-5.5 Instant ist der bestätigte Stand in ChatGPT und verbessert Antwortqualität.',
+            'GPT-5.5 Instant ist der bestätigte Stand in ChatGPT. Der Artikel beschreibt Modellqualität und Alltagshilfe.',
+            CURRENT_DATE,
+            'OpenAI & GPT-Modelle',
+            10.0
+          ),
+          (
+            'GPT Iris Codename Leak',
+            'https://example.com/gpt-iris',
+            'Kurzbeschreibung',
+            'Drittquellen diskutieren Iris als möglichen GPT-5.6-Projektnamen. Der Artikel trennt Spekulation von bestätigten OpenAI-Informationen.',
+            'Iris wird als möglicher GPT-5.6-Projektname diskutiert, ist aber nicht offiziell bestätigt.',
+            CURRENT_DATE,
+            'OpenAI & GPT-Modelle',
+            1.0
+          )
+    """)
+    con.close()
+
+    retriever = PassageRetriever(storage)
+    with app.app_context():
+        results = retriever.retrieve("Was ist GPT Iris?")
+
+    assert results
+    assert results[0]["link"] == "https://example.com/gpt-iris"
 
 
 def test_diverse_by_link_prefers_unique_sources():

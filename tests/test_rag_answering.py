@@ -103,6 +103,26 @@ def test_answer_question_returns_quality_sources_only():
     assert eval_res["flag"] is False
 
 
+def test_answer_question_rejects_loose_gpt_sources_for_specific_codename():
+    app = Flask(__name__)
+    app.config["SYN_WEIGHT"] = SYN_WEIGHT
+    app.storage = FakeStorage()
+    app.retriever = FakeRetriever()
+    app.generator = FakeGenerator()
+    app.evaluator = FakeEvaluator()
+
+    with app.app_context():
+        answer, sources, contexts, passages, topic, eval_res = answer_question("Was ist GPT Iris?")
+
+    assert "iris" in answer.lower()
+    assert "lose verwandten GPT" in answer
+    assert sources == []
+    assert contexts == []
+    assert len(passages) == 3
+    assert topic == "OpenAI & GPT-Modelle"
+    assert eval_res["flag"] is True
+
+
 def test_context_limit_expands_for_leak_questions():
     assert context_limit_for_question("Was sind die geleakten Informationen zu GPT-5.6?") >= 7
     assert context_limit_for_question("Was ist neu bei OpenAI?") == 5

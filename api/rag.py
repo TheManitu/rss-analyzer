@@ -11,7 +11,7 @@ from config import FINAL_CONTEXTS
 from logging_service.kafka_config_and_logger import log_answer_quality, log_user_question
 from pipeline.source_quality import classify_source, source_domain
 from pipeline.text_quality import clean_article_text, clean_display_text, is_useful_article_text, is_valid_source_link, snippet
-from retrieval.passage_retriever import PassageRetriever
+from retrieval.passage_retriever import PassageRetriever, required_query_terms, text_contains_required_terms
 from storage.topic_tracker import create_topic_table, get_all_topics, update_topic
 
 
@@ -180,6 +180,28 @@ def sources_from_contexts(contexts: list[dict]) -> list[dict]:
     } for ctx in contexts]
 
 
+def no_answer_message(question: str) -> str:
+    required = required_query_terms(question)
+    if required:
+        terms = ", ".join(required)
+        return (
+            "Es wurden keine ausreichend relevanten Quellen gefunden, die die spezifischen "
+            f"Suchbegriffe ({terms}) belastbar belegen. Ich beantworte die Frage deshalb "
+            "nicht mit nur lose verwandten GPT- oder OpenAI-Quellen."
+        )
+    return NO_ANSWER
+
+
+def filter_contexts_for_question(question: str, contexts: list[dict]) -> list[dict]:
+    required = required_query_terms(question)
+    if not required:
+        return contexts
+    return [
+        ctx for ctx in contexts
+        if text_contains_required_terms(f"{ctx.get('title', '')} {ctx.get('summary', '')}", required)
+    ]
+
+
 def source_discussion(ctx: dict) -> str:
     domain = source_domain(ctx.get("link", ""))
     combined = f"{ctx.get('title', '')} {ctx.get('summary', '')}".lower()
@@ -214,8 +236,9 @@ def answer_question(question: str) -> tuple[str, list[dict], list[dict], list[di
 
     ranked = _filter_and_rank(question, passages)
     contexts = build_contexts_from_passages(ranked, limit=context_limit_for_question(question))
+    contexts = filter_contexts_for_question(question, contexts)
     if not contexts:
-        return NO_ANSWER, [], [], passages, topic, {"score": 0.0, "flag": True}
+        return no_answer_message(question), [], [], passages, topic, {"score": 0.0, "flag": True}
 
     try:
         answer = current_app.generator.generate(question, contexts=contexts)

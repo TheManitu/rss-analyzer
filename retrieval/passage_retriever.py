@@ -43,9 +43,50 @@ QUERY_STOPWORDS = {
     "wichtigsten", "passiert", "welche", "warum", "wie",
 }
 
+BROAD_MODEL_TERMS = {
+    "ai", "ki", "ml", "gpt", "chatgpt", "openai", "model", "modell", "modelle",
+    "projekt", "project", "projektname", "projektnamen", "projectname",
+    "codename", "codenamen", "code", "name", "namen", "release", "features",
+    "feature", "funktionen", "funktion", "informationen", "info", "infos", "hinweise",
+    "stand", "quelle", "quellen",
+}
+
+VERSION_TERM_RE = re.compile(r"^(?:[a-z]+-)?\d+(?:\.\d+)+$")
+
 
 def _keep_query_term(term: str) -> bool:
     return term not in QUERY_STOPWORDS and (len(term) > 2 or term in {"ai", "ki", "ml"})
+
+
+def _query_base_terms(query: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+(?:[-.][a-z0-9]+)*", (query or "").lower())
+
+
+def required_query_terms(query: str) -> list[str]:
+    required = []
+    for term in _query_base_terms(query):
+        if term in QUERY_STOPWORDS or term in BROAD_MODEL_TERMS:
+            continue
+        if VERSION_TERM_RE.match(term) or len(term) > 3:
+            required.append(term)
+    return list(dict.fromkeys(required))
+
+
+def _compact_term(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def text_contains_term(text: str, term: str) -> bool:
+    lowered = (text or "").lower()
+    if term in lowered:
+        return True
+    compact_text = _compact_term(lowered)
+    compact_term = _compact_term(term)
+    return bool(compact_term and compact_term in compact_text)
+
+
+def text_contains_required_terms(text: str, terms: list[str]) -> bool:
+    return all(text_contains_term(text, term) for term in terms)
 
 
 def _diverse_by_link(results: list[dict], limit: int) -> list[dict]:
@@ -146,6 +187,16 @@ class PassageRetriever:
         )
         return hits >= 2
 
+    def _matches_required_terms(self, art: dict, required_terms: list[str]) -> bool:
+        if not required_terms:
+            return True
+        kws = " ".join(self.storage.get_article_keywords(art["link"]) or [])
+        searchable = " ".join(
+            str(art.get(key) or "")
+            for key in ("title", "summary", "description", "content", "translation", "topic")
+        )
+        return text_contains_required_terms(f"{searchable} {kws}", required_terms)
+
     def _keyword_rank(self, query_terms: list[str], passages: list[dict]) -> list[dict]:
         max_imp = max((p["importance"] for p in passages), default=1.0) or 1.0
         terms = [term for term in query_terms if _keep_query_term(term)]
@@ -194,14 +245,15 @@ class PassageRetriever:
             return []
 
         # 1) Query-Terms + Synonyme
-        base_terms   = re.findall(r"[a-z0-9]+(?:[-.][a-z0-9]+)*", query.lower())
+        base_terms   = _query_base_terms(query)
         synonyms     = TOPIC_SYNONYMS.get(topic, [])
         query_terms  = [term for term in set(base_terms + synonyms) if _keep_query_term(term)]
+        required_terms = required_query_terms(query)
 
         # 2) Keyword & Topic Filter
         filtered = [
             art for art in all_articles
-            if self._matches(art, query_terms, topic)
+            if self._matches(art, query_terms, topic) and self._matches_required_terms(art, required_terms)
         ]
         if USE_STRICT_KEYWORD_FILTER:
             # striktes Filtering ohne Fallback
@@ -210,6 +262,8 @@ class PassageRetriever:
         else:
             # fallback auf alle Artikel
             if not filtered:
+                if required_terms:
+                    return []
                 filtered = all_articles
 
         # 3) Summary-Passagen sammeln

@@ -29,4 +29,7 @@ def test_index_template_uses_reader_design_and_functional_ids():
     assert '.search-form input[type="text"]::placeholder' in style
     assert "font-weight: 500" in style
     assert ".result-panel summary" in style
+    assert ".research-panel .result-panel[open]" in style
+    assert "overflow-y: auto" in style
+    assert "overscroll-behavior: contain" in style
     assert 'content: "Einklappen"' in style

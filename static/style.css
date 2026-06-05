@@ -687,6 +687,15 @@ input {
     overflow-wrap: anywhere;
 }
 
+.research-panel .result-panel[open] {
+    flex: 1 1 0;
+    min-height: 180px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
 .result-panel summary {
     display: flex;
     align-items: center;
@@ -717,6 +726,10 @@ input {
 }
 
 .result-panel[open] summary {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--reader-answer-bg);
     border-bottom: 1px solid rgba(23, 27, 31, 0.08);
 }
 
