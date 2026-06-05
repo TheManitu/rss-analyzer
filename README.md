@@ -1,242 +1,267 @@
+# RSS Analyzer
 
-# RSS Analyzer mit RAG
+RSS Analyzer ist eine lokale Research-App fuer aktuelle Tech- und AI-Quellen. Das System sammelt RSS-Artikel, bereinigt Scraping-Artefakte, bewertet Quellenqualitaet und beantwortet Nutzerfragen mit einer Retrieval-Augmented-Generation-Pipeline (RAG).
 
-Dieses Open-Source-Projekt sammelt, bereinigt und analysiert RSS-Feed-Artikel lokal und stellt eine interaktive Web-UI zur Verfügung. Es kombiniert klassische ETL-Techniken mit einer Retrieval-Augmented Generation (RAG)-Pipeline.
+Der aktuelle Stand ist auf Demo-Qualitaet ausgerichtet: Die UI zeigt Artikel, Antworten und Quellen kompakt, unterscheidet offizielle Quellen von Drittquellen und vermeidet Antworten auf Basis lose verwandter Treffer.
 
----
+## Aktueller Stand
 
-## Änderungen seit letzter Version
+- Moderne Reader-Oberflaeche mit Artikelstrom, Themenfilter, Zeitraumfilter und Antwort-/Quellenbereich.
+- Light Mode und Dark Mode inklusive passender Scrollbars und lesbarer Ergebnis-Panels.
+- RSS-Ingestion fuer Tech-, AI- und OpenAI-nahe Quellen, ergaenzt durch kuratierte Trusted Sources.
+- Quellenbasierte Q&A ueber `/search` mit Antwort, Quellenliste, Snippets, Domain und Quellenbewertung.
+- Quellenklassifizierung in `official`, `third_party`, `speculative` und `community`.
+- Spezifische Fragen wie GPT-5.6, Iris oder andere Codenames muessen passende Quellen enthalten; ansonsten meldet das System klar, dass keine belastbare Quelle gefunden wurde.
+- Scrape-Text wird bereinigt: HTML, Cookie-/Werbe-Boilerplate, kaputte Encoding-Zeichen und Markdown-Artefakte wie `##`, `**...**` oder `[Link](url)` werden entfernt.
+- Ausgeklappte Artikel werden linksbuendig mit lesbaren Absatzumbruechen dargestellt.
+- Fallback-Antworten bleiben quellenbasiert, falls kein lokales LLM erreichbar ist.
 
-- **Startup-Skip-Flags**: Neue Environment-Variablen zur feingranularen Steuerung, nun standardmäßig auf `false`, außer für `analyzer` und `dashboard`.
-- **Makefile**: Ergänzt um dedizierte Targets für jeden Pipeline-Schritt (`ingest`, `keywords`, `topics` usw.) und Meta-Targets (`pipeline`, `all`).
+## Warum das Projekt interessant ist
 
----
+Viele RSS-Reader koennen Artikel sammeln, aber sie beantworten keine Research-Fragen mit Quellenkontrolle. RSS Analyzer kombiniert deshalb vier Schritte:
 
-## Kernfunktionen
+1. Sammeln: Artikel aus RSS-Feeds, offiziellen Hilfeseiten und kuratierten Discovery-Quellen.
+2. Bereinigen: Entfernung von Werbung, Navigation, kaputten Zeichen, Markdown-Resten und Duplicate Content.
+3. Bewerten: Einstufung der Quellen nach Herkunft und Spekulationssignalen.
+4. Antworten: RAG-Antworten mit Quellen, Snippets und Vertrauenshinweisen.
 
-- **Robuste RSS-Ingestion**  
-  - Paralleles Fetching (aiohttp), Duplikat-Check, HTML- und Cookie-Bereinigung  
-  - Volltext-Scraping mit BeautifulSoup (nur ausgewählte Domains), Skip-Liste für problematische URLs  
-  - Automatisches Entfernen kurzer Artikel (< 300 Wörter)  
-  - Extractive Summaries (TextRank via Sumy) und regelbasierte Übersetzung (Apertium)
+Das Ziel ist nicht, Geruechte als Fakten zu behandeln. Gerade bei unveroeffentlichten Modellen oder Codenames wird bewusst getrennt zwischen bestaetigten Informationen, Drittquellen und unbestaetigten Hinweisen.
 
-- **Saubere Datenhaltung**  
-  - DuckDB-Storage mit automatischer Schema-Migration (`content`, `summary`, `translation`)  
-  - `clean_text()` entfernt HTML-Tags und Entities  
-  - Nachreinigung aller ausgelieferten Texte vor UI-Darstellung
+## Beispielverhalten
 
-- **RAG-Pipeline**  
-  - Semantische Suche: Sentence-Transformer + FAISS  
-  - Keyword-Suche: BM25  
-  - Hybrid-Score-Fusion und Auswahl der Top-K Kontexte
+### Frage zu einem belegten Thema
 
-- **Prompt-Templates**  
-  - Maximal 5 Quellen pro Antwort  
-  - Wichtigste Artikel: Vollständige Zusammenfassung (≤ 500 Wörter)  
-  - Nebensätze: Kurzfassung (≤ 200 Zeichen)  
-  - Ausgabe ausschließlich auf Deutsch
+Frage:
 
-- **REST-API (Flask)**  
-  - Endpoint `/search`: liefert Top-5 Kandidaten (`title`, `link`) als JSON für Frontend  
-  - Antwortgenerierung mit LLM (Llama2 oder konfiguriertes Modell)
+```text
+Was ist neu bei OpenAI?
+```
 
-- **Web-UI**  
-  - Indexseite mit Suchfeld, Antwort und klickbarer Quellenliste  
-  - Unter der Antwort eine Leerzeile und `.sources-box` für Quellenlinks  
-  - Template-Filter `|striptags`, `first_words`, `truncatewords` in `api/`
+Erwartetes Verhalten:
 
-- **Styling**  
-  - `static/style.css` enthält `.sources-box`-Styles sowie allgemeines Layout  
-  - Moderne Typografie über Google Fonts
+- Es werden relevante Quellen aus dem Artikelbestand gesucht.
+- Offizielle OpenAI-Quellen werden hoeher gewichtet.
+- Die Antwort nennt belegte Informationen und listet darunter Quellen mit Snippet und Bewertung.
 
----
+### Frage zu GPT Iris
 
-## Projektstruktur
+Frage:
+
+```text
+Was ist Chat GPT Iris?
+```
+
+Erwartetes Verhalten:
+
+- `chat`, `gpt` und `openai` gelten als generische Kontextbegriffe.
+- `iris` gilt als spezifischer Pflichtbegriff.
+- Wenn keine Quelle `iris` belastbar belegt, antwortet das System nicht mit GPT-5.5-Ersatzquellen.
+
+Beispielausgabe:
+
+```text
+Es wurden keine ausreichend relevanten Quellen gefunden, die die spezifischen Suchbegriffe (iris) belastbar belegen. Ich beantworte die Frage deshalb nicht mit nur lose verwandten GPT- oder OpenAI-Quellen.
+```
+
+## Architektur
 
 ```text
 rss-analyzer/
-├── docker/
-│   └── docker-compose.yml     # Zookeeper, Kafka, Prometheus, Grafana, API, …
-├── prompt_templates/
-│   └── *.tpl
-├── api/                       # Flask-Blueprints & App-Factory
-│   ├── rag.py
-│   ├── analytics.py
-│   ├── utils.py
-│   └── api.py
-├── ingestion/
-│   └── rss_ingest.py
-├── storage/
-│   └── duckdb_storage.py
-├── retrieval/
-│   ├── hybrid_retrieval.py
-│   └── cross_encoder_ranker.py
-├── evaluation/
-│   └── quality_evaluator.py
-├── filter/
-│   └── content_filter.py
-├── logging_service/
-│   └── kafka_config_and_logger.py
-├── templates/
-│   └── index.html
-├── static/
-│   ├── style.css
-│   └── app.js
-├── data/
-│   └── rssfeed.duckdb
-├── scripts/
-│   └── recalc_importance.py
-├── tests/
-│   └── *.py
-├── requirements.txt
-├── Makefile                  # neu hinzugefügt
-└── README.md
+├── api/                    Flask-App, RAG-Endpoints und UI-Routen
+├── ingestion/              RSS- und Trusted-Source-Ingestion
+├── pipeline/               Cleaning, Topics, Relevance, Segmentation, Summaries
+├── retrieval/              PassageRetriever und ContentFilter
+├── ranking/                Cross-Encoder-Ranking
+├── generation/             Prompting, LLM-Anbindung und Fallback-Antworten
+├── evaluation/             Antwortqualitaets-Evaluierung
+├── storage/                DuckDB-Storage
+├── templates/              Flask/Jinja-Templates
+├── static/                 Frontend-JavaScript, CSS und Logo
+├── tests/                  Regressionstests fuer Ingestion, RAG, UI und Textqualitaet
+├── config.py               Feeds, Quellen, Retrieval- und Modellparameter
+├── docker-compose.yml      Kafka, Ollama, API und Analytics-Services
+└── requirements.txt
+```
 
-Installation & Start
+## Daten- und Quellenqualitaet
 
-Repo klonen
+Die wichtigsten Qualitaetsregeln liegen in:
 
-    git clone https://github.com/<user>/rss-analyzer.git
+- `pipeline/text_quality.py`: HTML-Stripping, Boilerplate-Filter, Markdown-Bereinigung, Encoding-Reparatur.
+- `pipeline/source_quality.py`: offizielle Quellen, Community-Quellen, Spekulationssignale und Vertrauenslabel.
+- `retrieval/passage_retriever.py`: Retrieval, Topic-/Keyword-Filter und Pflichtbegriffe fuer spezifische Fragen.
+- `api/rag.py`: Kontextaufbau, Quellenliste, Quellenbegruendung und No-Answer-Verhalten.
 
-    cd rss-analyzer
+Spezifische Codenames oder Versionsbegriffe duerfen nicht durch allgemeine GPT-/OpenAI-Treffer ersetzt werden. Diese Regel verhindert Demo-Antworten, die zwar thematisch nah wirken, aber die eigentliche Frage nicht belegen.
 
-Datenbank zurücksetzen (optional)
+## Schnellstart lokal
 
-    rm -f data/rssfeed.duckdb
+Voraussetzungen:
 
-Dependencies installieren
+- Python 3.11 empfohlen
+- Optional: Ollama fuer lokale LLM-Antworten
+- Optional: Docker fuer den vollstaendigen Stack
 
-    pip install -r requirements.txt
+Installation:
 
-Docker-Services starten
+```powershell
+git clone https://github.com/TheManitu/rss-analyzer.git
+cd rss-analyzer
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-    make build    # Image bauen & alle Services starten
+Schneller UI-Start ohne komplette Pipeline beim Start:
 
-# oder einzeln:
+```powershell
+$env:PORT='5001'
+$env:SKIP_INGEST_ON_STARTUP='true'
+$env:SKIP_KEYWORDS_ON_STARTUP='true'
+$env:SKIP_TOPICS_ON_STARTUP='true'
+$env:SKIP_RELEVANCE_ON_STARTUP='true'
+$env:SKIP_SEGMENTATION_ON_STARTUP='true'
+$env:SKIP_SUMMARIZATION_ON_STARTUP='true'
+$env:SKIP_ANALYZER_ON_STARTUP='true'
+$env:SKIP_DASHBOARD_ON_STARTUP='true'
+python -m api.api
+```
 
-    make up       # = make build
+Dann im Browser:
 
-Web-UI lokal (ohne Kafka/Spark)
+```text
+http://127.0.0.1:5001/
+```
 
-python -m api.app
-# → http://localhost:5000
+Standardstart mit Default-Port:
 
-Tests
+```powershell
+python -m api.api
+```
 
-    pytest tests/
+Dann:
 
-Docker-Compose Environment Variables
+```text
+http://127.0.0.1:5000/
+```
 
-— Startup-Skip-Flags —
-Steuern, ob einzelne Pipeline-Stages beim Container-Start übersprungen werden (Default false, außer analyzer und dashboard):
+## Docker-Start
 
-  environment:
-    SKIP_INGEST_ON_STARTUP:       ${SKIP_INGEST_ON_STARTUP:-false}
-    SKIP_KEYWORDS_ON_STARTUP:     ${SKIP_KEYWORDS_ON_STARTUP:-false}
-    SKIP_TOPICS_ON_STARTUP:       ${SKIP_TOPICS_ON_STARTUP:-false}
-    SKIP_RELEVANCE_ON_STARTUP:    ${SKIP_RELEVANCE_ON_STARTUP:-false}
-    SKIP_SEGMENTATION_ON_STARTUP: ${SKIP_SEGMENTATION_ON_STARTUP:-false}
-    SKIP_SUMMARIZATION_ON_STARTUP:${SKIP_SUMMARIZATION_ON_STARTUP:-false}
-    SKIP_ANALYZER_ON_STARTUP:     ${SKIP_ANALYZER_ON_STARTUP:-true}
-    SKIP_DASHBOARD_ON_STARTUP:    ${SKIP_DASHBOARD_ON_STARTUP:-true}
+```powershell
+docker compose up --build
+```
 
-Makefile für Docker-basiertes Pipeline-Projekt
+Der Docker-Stack startet unter anderem:
 
-COMPOSE = docker-compose
-SERV    = api
+- Flask-API
+- Kafka und Zookeeper
+- Ollama
+- Spark-Analytics-Services
 
-.PHONY: api build up down logs shell ingest keywords topics importance segmentation \
-summarization analyzer dashboard pipeline all top-articles archive clean
+Wichtige Environment-Variablen:
 
-# Show API logs
-api:
-	$(COMPOSE) logs -f $(SERV)
+```text
+DB_PATH
+PORT
+OLLAMA_HOST
+LLM_MODEL_INITIAL
+LLM_MODEL_REFINE
+RETRIEVAL_CANDIDATES
+FINAL_CONTEXTS
+ENABLE_DISCOVERY_FEEDS
+SKIP_INGEST_ON_STARTUP
+SKIP_KEYWORDS_ON_STARTUP
+SKIP_TOPICS_ON_STARTUP
+SKIP_RELEVANCE_ON_STARTUP
+SKIP_SEGMENTATION_ON_STARTUP
+SKIP_SUMMARIZATION_ON_STARTUP
+SKIP_ANALYZER_ON_STARTUP
+SKIP_DASHBOARD_ON_STARTUP
+```
 
-# ─── Docker-Lifecycle ─────────────────────────────────────────────────────────
+## Tests
 
-build:
-	$(COMPOSE) build
+Komplette Testsuite:
 
-up: build
-	$(COMPOSE) up -d
+```powershell
+python -m pytest tests/ -q
+```
 
-down:
-	$(COMPOSE) down
+Der aktuelle Stand deckt unter anderem ab:
 
-logs: up
-	$(COMPOSE) logs -f $(SERV)
+- Text- und Encoding-Qualitaet
+- Markdown-Bereinigung aus Scrape-Texten
+- Quellenklassifizierung
+- GPT-5.6- und Iris-No-Answer-Verhalten
+- Passage-Retrieval
+- RAG-Antworten
+- Frontend-Rendering und Layout-Regeln
+- Trusted-Source-Ingestion
 
-# Interaktive Shell im API-Container
-shell: up
-	$(COMPOSE) exec $(SERV) /bin/bash
+## Wichtige Endpoints
 
-# ─── Einzelne Pipeline-Schritte im laufenden Container ───────────────────────
+```text
+GET  /                 Web-UI
+POST /search           JSON-Q&A fuer das Frontend
+POST /api/refresh      Pipeline-Aktualisierung aus der UI
+GET  /rag              RAG-Blueprint-Index
+POST /rag/search       RAG-Blueprint-Suche
+```
 
-ingest: up
-	$(COMPOSE) exec -T $(SERV) python3 -m ingestion.rss_ingest
+Beispiel fuer `/search`:
 
-keywords: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/keyword_extraction_langaware.py
+```json
+{
+  "question": "Was ist neu bei OpenAI?"
+}
+```
 
-topics: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/topic_assignment.py
+Antwortschema:
 
-importance: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/relevance_scoring.py
+```json
+{
+  "answer": "...",
+  "sources": [
+    {
+      "title": "...",
+      "link": "...",
+      "snippet": "...",
+      "domain": "...",
+      "discussion": "...",
+      "source_type": "official",
+      "credibility_score": 1.0
+    }
+  ]
+}
+```
 
-segmentation: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/segmentation.py
+## Demo-Hinweise
 
-summarization: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/summarization.py
+Fuer eine gute Demo eignen sich Fragen, die entweder klar belegbar sind oder bewusst die No-Answer-Logik zeigen:
 
-analyzer: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/analyzer.py
+- `Was ist neu bei OpenAI?`
+- `Welche aktuellen Hinweise gibt es zu GPT-5.6 und wie belastbar sind die Quellen?`
+- `Was ist Chat GPT Iris?`
 
-dashboard: up
-	$(COMPOSE) exec -T $(SERV) python3 pipeline/dashboard_generator.py
+Die Demo sollte zeigen:
 
-# ─── Komplett-Pipeline & Meta-Targets ────────────────────────────────────────
+- Antworten werden mit Quellen erklaert.
+- Quellen werden bewertet, nicht nur verlinkt.
+- Unbestaetigte Hinweise werden nicht als Produktfakten dargestellt.
+- Wenn keine Quelle passt, sagt das System das klar.
 
-pipeline: ingest keywords topics importance segmentation summarization analyzer dashboard
+## Rollback und Betrieb
 
-all: up pipeline
+Die App nutzt DuckDB lokal. Fuer lokale Tests kann eine eigene DB gesetzt werden:
 
-# ─── Hilfs-Skripte im Container ───────────────────────────────────────────────
+```powershell
+$env:DB_PATH="$env:TEMP\rss_analyzer_live_test.duckdb"
+```
 
-top-articles: up
-	$(COMPOSE) exec -T $(SERV) python3 get_top_articles.py
+Ein fehlerhafter Code-Stand kann per Git revert zurueckgenommen werden:
 
-archive: up
-	$(COMPOSE) exec -T $(SERV) python3 archive_to_bigquery.py
+```powershell
+git revert <commit>
+```
 
-# ─── Aufräumen ───────────────────────────────────────────────────────────────
-
-clean:
-	@echo "Docker builder und Volumes bereinigen..."
-	docker builder prune --force
-	docker volume prune --force
-
-Makefile-Befehle
-
-    ingest: RSS-Ingestion
-
-    keywords: Keyword-Extraktion
-
-    topics: Topic-Zuweisung
-
-    importance: Importance-Scoring
-
-    segmentation: Text-Segmentierung
-
-    summarization: Zusammenfassung
-
-    analyzer: Qualitätsanalyse
-
-    dashboard: Dashboard-Erzeugung
-
-    pipeline: Komplett-Pipeline
-
-    all: up + pipeline
-
-    clean: Aufräumen von Builder-Caches und Volumes
+Fuer Demo- oder Portfolio-Screenshots sollte die App mit einer vorbereiteten DuckDB und gesetzten Startup-Skip-Flags gestartet werden, damit die UI sofort reagiert.
