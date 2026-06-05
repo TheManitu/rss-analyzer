@@ -44,7 +44,8 @@ QUERY_STOPWORDS = {
 }
 
 BROAD_MODEL_TERMS = {
-    "ai", "ki", "ml", "gpt", "chatgpt", "openai", "model", "modell", "modelle",
+    "ai", "ki", "ml", "gpt", "chat", "chats", "chatbot", "chatbots",
+    "chatgpt", "openai", "model", "modell", "modelle",
     "projekt", "project", "projektname", "projektnamen", "projectname",
     "codename", "codenamen", "code", "name", "namen", "release", "features",
     "feature", "funktionen", "funktion", "informationen", "info", "infos", "hinweise",

@@ -127,6 +127,8 @@ def test_retrieve_specific_codename_does_not_fallback_to_related_gpt_articles(ap
         results = retriever.retrieve("Was ist GPT Iris?")
 
     assert required_query_terms("Was ist GPT Iris?") == ["iris"]
+    assert required_query_terms("Was ist Chat Iris?") == ["iris"]
+    assert required_query_terms("Was ist Chat GPT Iris?") == ["iris"]
     assert required_query_terms("Ist Iris der Projektname von GPT 5.6?") == ["iris", "5.6"]
     assert results == []
 

@@ -112,9 +112,11 @@ def test_answer_question_rejects_loose_gpt_sources_for_specific_codename():
     app.evaluator = FakeEvaluator()
 
     with app.app_context():
-        answer, sources, contexts, passages, topic, eval_res = answer_question("Was ist GPT Iris?")
+        answer, sources, contexts, passages, topic, eval_res = answer_question("Was ist Chat GPT Iris?")
 
     assert "iris" in answer.lower()
+    assert "(iris)" in answer
+    assert "chat, iris" not in answer.lower()
     assert "lose verwandten GPT" in answer
     assert sources == []
     assert contexts == []
